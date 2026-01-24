@@ -46,8 +46,22 @@ export function StockChart({ data, isUp, costPrice }: StockChartProps) {
             dataKey="time"
             axisLine={false}
             tickLine={false}
-            tick={{ fill: "#6b7280", fontSize: 12 }}
-            tickMargin={10}
+            tick={{ fill: "#6b7280", fontSize: 10 }}
+            tickMargin={8}
+            tickFormatter={(value) => {
+              // 只显示时间部分，不显示日期
+              if (value.includes(" ")) {
+                const timePart = value.split(" ")[1]
+                // 只保留小时:分钟
+                return timePart ? timePart.slice(0, 5) : value
+              }
+              // 如果是日期格式（如 2026-01-23），只显示月-日
+              if (value.includes("-") && value.length === 10) {
+                return value.slice(5)
+              }
+              return value
+            }}
+            interval="preserveStartEnd"
           />
           <YAxis
             domain={yDomain}
@@ -80,10 +94,11 @@ export function StockChart({ data, isUp, costPrice }: StockChartProps) {
               strokeDasharray="5 5"
               strokeWidth={2}
               label={{
-                value: `成本: ¥${costPrice.toFixed(2)}`,
-                position: "right",
+                value: `¥${costPrice.toFixed(2)}`,
+                position: "insideTopLeft",
                 fill: "#facc15",
-                fontSize: 12,
+                fontSize: 10,
+                offset: 5,
               }}
             />
           )}

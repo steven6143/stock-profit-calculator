@@ -8,17 +8,15 @@ interface StockStatsProps {
   low: number
   volume: number
   marketCap: string
-  pe: number
 }
 
-export function StockStats({ open, high, low, volume, marketCap, pe }: StockStatsProps) {
+export function StockStats({ open, high, low, volume, marketCap }: StockStatsProps) {
   const stats = [
     { label: "今开", value: `¥${open.toFixed(2)}` },
     { label: "最高", value: `¥${high.toFixed(2)}` },
     { label: "最低", value: `¥${low.toFixed(2)}` },
     { label: "成交量", value: `${(volume / 10000).toFixed(2)}万` },
-    { label: "市值", value: marketCap },
-    { label: "市盈率", value: pe.toFixed(2) },
+    { label: "成交额", value: marketCap },
   ]
 
   return (

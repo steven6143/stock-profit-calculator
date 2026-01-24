@@ -179,7 +179,6 @@ export default function StockTrackerPage() {
                 low={quote.low}
                 volume={quote.volume}
                 marketCap={marketCap}
-                pe={0}
               />
             </section>
           </>
