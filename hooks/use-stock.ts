@@ -222,6 +222,20 @@ export function usePosition() {
     [positions]
   );
 
+  // 更新持仓访问时间（标记为最近查看）
+  const touchPosition = useCallback(
+    async (stockCode: string) => {
+      try {
+        await fetch(`/api/position?stockCode=${stockCode}`, {
+          method: "PATCH",
+        });
+      } catch {
+        // 静默失败，不影响用户体验
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     fetchPositions();
   }, [fetchPositions]);
@@ -235,5 +249,6 @@ export function usePosition() {
     savePosition,
     deletePosition,
     getPositionByCode,
+    touchPosition,
   };
 }

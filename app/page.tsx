@@ -32,6 +32,7 @@ export default function StockTrackerPage() {
     savePosition,
     deletePosition,
     getPositionByCode,
+    touchPosition,
   } = usePosition();
 
   // 获取当前股票的持仓信息
@@ -55,6 +56,11 @@ export default function StockTrackerPage() {
       code: stock.code,
       name: stock.name,
     });
+    // 如果选择的是已有持仓的股票，更新访问时间
+    const existingPosition = positions.find((p) => p.stockCode === stock.code);
+    if (existingPosition) {
+      touchPosition(stock.code);
+    }
   };
 
   const handleSavePosition = async (costPrice: string, shares: string) => {

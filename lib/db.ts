@@ -152,3 +152,15 @@ export async function getPositionByCode(stockCode: string): Promise<Position | n
     updatedAt: row.updatedAt as string,
   };
 }
+
+// 更新持仓的访问时间（用于记录最近查看的股票）
+export async function touchPosition(stockCode: string): Promise<void> {
+  const client = getDb();
+  await initDb();
+
+  const now = new Date().toISOString();
+  await client.execute({
+    sql: "UPDATE positions SET updatedAt = ? WHERE stockCode = ?",
+    args: [now, stockCode],
+  });
+}

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllPositions, upsertPosition, deletePosition } from "@/lib/db";
+import { getAllPositions, upsertPosition, deletePosition, touchPosition } from "@/lib/db";
 
 // 获取所有持仓
 export async function GET() {
@@ -65,6 +65,31 @@ export async function DELETE(request: NextRequest) {
     console.error("删除持仓失败:", error);
     return NextResponse.json(
       { success: false, error: "删除持仓失败" },
+      { status: 500 }
+    );
+  }
+}
+
+// 更新持仓访问时间（标记为最近查看）
+export async function PATCH(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const stockCode = searchParams.get("stockCode");
+
+    if (!stockCode) {
+      return NextResponse.json(
+        { success: false, error: "缺少股票代码参数" },
+        { status: 400 }
+      );
+    }
+
+    await touchPosition(stockCode);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("更新访问时间失败:", error);
+    return NextResponse.json(
+      { success: false, error: "更新访问时间失败" },
       { status: 500 }
     );
   }
