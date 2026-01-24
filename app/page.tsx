@@ -9,7 +9,7 @@ import { PositionDialog } from "@/components/position-dialog";
 import { StockSearch } from "@/components/stock-search";
 import { useStockQuote, useKLineData, usePosition } from "@/hooks/use-stock";
 import type { StockSearchResult } from "@/lib/types/stock";
-import { Loader2 } from "lucide-react";
+import { Loader2, TrendingUp } from "lucide-react";
 
 export default function StockTrackerPage() {
   const [timeRange, setTimeRange] = useState("1D");
@@ -26,8 +26,13 @@ export default function StockTrackerPage() {
     selectedStock?.code || null,
     timeRange
   );
-  const { positions, savePosition, deletePosition, getPositionByCode } =
-    usePosition();
+  const {
+    positions,
+    initialized,
+    savePosition,
+    deletePosition,
+    getPositionByCode,
+  } = usePosition();
 
   // 获取当前股票的持仓信息
   const currentPosition = selectedStock
@@ -36,14 +41,14 @@ export default function StockTrackerPage() {
 
   // 页面加载时，如果有持仓记录，默认选择第一个
   useEffect(() => {
-    if (!selectedStock && positions.length > 0) {
+    if (initialized && !selectedStock && positions.length > 0) {
       const firstPosition = positions[0];
       setSelectedStock({
         code: firstPosition.stockCode,
         name: firstPosition.stockName,
       });
     }
-  }, [positions, selectedStock]);
+  }, [positions, selectedStock, initialized]);
 
   const handleStockSelect = (stock: StockSearchResult) => {
     setSelectedStock({
@@ -83,6 +88,25 @@ export default function StockTrackerPage() {
       ? `${(quote.amount / 100000000).toFixed(2)}亿`
       : `${(quote.amount / 10000).toFixed(2)}万`
     : "-";
+
+  // 初始加载动画
+  if (!initialized) {
+    return (
+      <main className="min-h-screen bg-background">
+        <div className="flex min-h-screen flex-col items-center justify-center">
+          <div className="flex flex-col items-center space-y-4">
+            <div className="relative">
+              <TrendingUp className="h-12 w-12 text-primary animate-pulse" />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <span className="text-muted-foreground">加载中...</span>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-background">

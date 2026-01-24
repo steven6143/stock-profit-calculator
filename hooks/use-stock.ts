@@ -134,6 +134,7 @@ export function useStockSearch() {
 export function usePosition() {
   const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(false);
+  const [initialized, setInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // 获取所有持仓
@@ -154,6 +155,7 @@ export function usePosition() {
       setError("网络错误");
     } finally {
       setLoading(false);
+      setInitialized(true);
     }
   }, []);
 
@@ -227,6 +229,7 @@ export function usePosition() {
   return {
     positions,
     loading,
+    initialized,
     error,
     fetchPositions,
     savePosition,
