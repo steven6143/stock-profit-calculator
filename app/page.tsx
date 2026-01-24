@@ -229,7 +229,7 @@ export default function StockTrackerPage() {
       {showScrollTop && (
         <button
           onClick={scrollToTop}
-          className="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-all hover:bg-primary/90 active:scale-95"
+          className="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-secondary border border-border text-muted-foreground shadow-lg transition-all hover:bg-secondary/80 hover:text-foreground active:scale-95"
           aria-label="回到顶部"
         >
           <ChevronUp className="h-6 w-6" />
