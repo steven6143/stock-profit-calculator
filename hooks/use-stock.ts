@@ -38,6 +38,11 @@ export function useStockQuote(code: string | null) {
     }
   }, [code]);
 
+  // 当股票代码变化时，立即清空旧数据
+  useEffect(() => {
+    setQuote(null);
+  }, [code]);
+
   useEffect(() => {
     fetchQuote();
     // 每30秒刷新一次
@@ -53,6 +58,11 @@ export function useKLineData(code: string | null, range: string) {
   const [data, setData] = useState<KLineData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 当股票代码变化时，立即清空旧数据
+  useEffect(() => {
+    setData([]);
+  }, [code]);
 
   useEffect(() => {
     if (!code) {
