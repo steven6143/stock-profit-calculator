@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { AssetType } from "@/lib/types/stock";
 
 interface PositionDialogProps {
   open: boolean;
@@ -20,6 +21,7 @@ interface PositionDialogProps {
   onSave: (costPrice: string, shares: string) => void;
   onClear?: () => void;
   hasPosition?: boolean;
+  assetType?: AssetType;
 }
 
 export function PositionDialog({
@@ -30,9 +32,11 @@ export function PositionDialog({
   onSave,
   onClear,
   hasPosition,
+  assetType = "stock",
 }: PositionDialogProps) {
   const [localCostPrice, setLocalCostPrice] = useState(costPrice);
   const [localShares, setLocalShares] = useState(shares);
+  const isFund = assetType === "fund";
 
   useEffect(() => {
     if (open) {
@@ -80,13 +84,13 @@ export function PositionDialog({
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="dialog-cost" className="text-muted-foreground">
-              成本价 (元)
+              {isFund ? "成本净值 (元)" : "成本价 (元)"}
             </Label>
             <Input
               id="dialog-cost"
               type="number"
               step="0.000001"
-              placeholder="输入您的买入均价"
+              placeholder={isFund ? "输入您的买入净值" : "输入您的买入均价"}
               value={localCostPrice}
               onChange={(e) => setLocalCostPrice(e.target.value)}
               className="border-border/50 bg-secondary text-foreground placeholder:text-muted-foreground"
@@ -94,13 +98,13 @@ export function PositionDialog({
           </div>
           <div className="space-y-2">
             <Label htmlFor="dialog-shares" className="text-muted-foreground">
-              持有股数
+              {isFund ? "持有份额" : "持有股数"}
             </Label>
             <Input
               id="dialog-shares"
               type="number"
-              step="100"
-              placeholder="输入您的持股数量"
+              step={isFund ? "1" : "100"}
+              placeholder={isFund ? "输入您的持有份额" : "输入您的持股数量"}
               value={localShares}
               onChange={(e) => setLocalShares(e.target.value)}
               className="border-border/50 bg-secondary text-foreground placeholder:text-muted-foreground"

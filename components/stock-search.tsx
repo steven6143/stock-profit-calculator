@@ -3,24 +3,23 @@
 import { useState, useEffect, useRef } from "react";
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { useStockSearch } from "@/hooks/use-stock";
-import type { StockSearchResult } from "@/lib/types/stock";
+import { useUnifiedSearch, UnifiedSearchResult } from "@/hooks/use-stock";
 import { cn } from "@/lib/utils";
 
 interface StockSearchProps {
-  onSelect: (stock: StockSearchResult) => void;
+  onSelect: (result: UnifiedSearchResult) => void;
   placeholder?: string;
   className?: string;
 }
 
 export function StockSearch({
   onSelect,
-  placeholder = "搜索股票代码或名称",
+  placeholder = "搜索股票或基金",
   className,
 }: StockSearchProps) {
   const [keyword, setKeyword] = useState("");
   const [isOpen, setIsOpen] = useState(false);
-  const { results, loading, search, clear } = useStockSearch();
+  const { results, loading, search, clear } = useUnifiedSearch();
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -54,8 +53,8 @@ export function StockSearch({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleSelect = (stock: StockSearchResult) => {
-    onSelect(stock);
+  const handleSelect = (result: UnifiedSearchResult) => {
+    onSelect(result);
     setKeyword("");
     setIsOpen(false);
     clear();
@@ -99,22 +98,27 @@ export function StockSearch({
             </div>
           ) : results.length > 0 ? (
             <ul>
-              {results.map((stock) => (
-                <li key={stock.code}>
+              {results.map((item) => (
+                <li key={`${item.type}-${item.code}`}>
                   <button
-                    onClick={() => handleSelect(stock)}
+                    onClick={() => handleSelect(item)}
                     className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-secondary transition-colors"
                   >
                     <div>
                       <span className="font-medium text-foreground">
-                        {stock.name}
+                        {item.name}
                       </span>
                       <span className="ml-2 text-sm text-muted-foreground">
-                        {stock.code}
+                        {item.code}
                       </span>
                     </div>
-                    <span className="text-xs text-muted-foreground">
-                      {stock.type === "11" ? "沪A" : stock.type === "12" ? "深A" : ""}
+                    <span className={cn(
+                      "text-xs px-2 py-0.5 rounded",
+                      item.type === "fund"
+                        ? "bg-blue-500/10 text-blue-500"
+                        : "bg-green-500/10 text-green-500"
+                    )}>
+                      {item.type === "fund" ? "基金" : item.subType}
                     </span>
                   </button>
                 </li>
@@ -122,7 +126,7 @@ export function StockSearch({
             </ul>
           ) : keyword ? (
             <div className="px-4 py-3 text-sm text-muted-foreground">
-              未找到相关股票
+              未找到相关股票或基金
             </div>
           ) : null}
         </div>

@@ -5,6 +5,9 @@ import type {
   StockSearchResult,
   Position,
   ChartDataPoint,
+  FundQuote,
+  FundSearchResult,
+  AssetType,
 } from "@/lib/types/stock";
 
 // 获取实时行情
@@ -264,4 +267,163 @@ export function usePosition() {
     getPositionByCode,
     touchPosition,
   };
+}
+
+// 获取基金数据（实时净值 + 图表数据）
+export function useFundData(code: string | null, range: string) {
+  const [quote, setQuote] = useState<FundQuote | null>(null);
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    if (!code) {
+      setQuote(null);
+      setChartData([]);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/fund/quote?code=${code}&range=${range}`);
+      const result = await res.json();
+
+      if (result.success) {
+        setQuote(result.data.quote);
+        setChartData(result.data.chartData);
+      } else {
+        setError(result.error || "获取基金数据失败");
+      }
+    } catch {
+      setError("网络错误");
+    } finally {
+      setLoading(false);
+    }
+  }, [code, range]);
+
+  // 当基金代码变化时，立即清空旧数据
+  useEffect(() => {
+    setQuote(null);
+    setChartData([]);
+  }, [code]);
+
+  useEffect(() => {
+    fetchData();
+    // 基金净值每天晚上更新，不需要频繁刷新
+  }, [fetchData]);
+
+  return { quote, chartData, loading, error, refetch: fetchData };
+}
+
+// 搜索基金
+export function useFundSearch() {
+  const [results, setResults] = useState<FundSearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const search = useCallback(async (keyword: string) => {
+    if (!keyword || keyword.length < 1) {
+      setResults([]);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await fetch(
+        `/api/fund/search?keyword=${encodeURIComponent(keyword)}`
+      );
+      const data = await res.json();
+
+      if (data.success) {
+        setResults(data.data);
+      } else {
+        setResults([]);
+      }
+    } catch {
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const clear = useCallback(() => {
+    setResults([]);
+  }, []);
+
+  return { results, loading, search, clear };
+}
+
+// 统一搜索（股票 + 基金）
+export interface UnifiedSearchResult {
+  code: string;
+  name: string;
+  type: AssetType;
+  subType: string; // 具体类型，如 "A股"、"混合型" 等
+}
+
+export function useUnifiedSearch() {
+  const [results, setResults] = useState<UnifiedSearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const search = useCallback(async (keyword: string) => {
+    if (!keyword || keyword.length < 1) {
+      setResults([]);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // 并行搜索股票和基金
+      const [stockRes, fundRes] = await Promise.all([
+        fetch(`/api/stock/search?keyword=${encodeURIComponent(keyword)}`),
+        fetch(`/api/fund/search?keyword=${encodeURIComponent(keyword)}`),
+      ]);
+
+      const [stockData, fundData] = await Promise.all([
+        stockRes.json(),
+        fundRes.json(),
+      ]);
+
+      const unified: UnifiedSearchResult[] = [];
+
+      // 添加股票结果
+      if (stockData.success && stockData.data) {
+        stockData.data.forEach((item: StockSearchResult) => {
+          unified.push({
+            code: item.code,
+            name: item.name,
+            type: "stock",
+            subType: item.type === "11" ? "A股" : item.type === "12" ? "B股" : "股票",
+          });
+        });
+      }
+
+      // 添加基金结果
+      if (fundData.success && fundData.data) {
+        fundData.data.forEach((item: FundSearchResult) => {
+          unified.push({
+            code: item.code,
+            name: item.name,
+            type: "fund",
+            subType: item.type || "基金",
+          });
+        });
+      }
+
+      setResults(unified);
+    } catch {
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const clear = useCallback(() => {
+    setResults([]);
+  }, []);
+
+  return { results, loading, search, clear };
 }

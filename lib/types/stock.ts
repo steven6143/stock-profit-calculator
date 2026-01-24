@@ -79,3 +79,31 @@ export interface ChartDataPoint {
   time: string;
   price: number;
 }
+
+// 基金实时数据
+export interface FundQuote {
+  code: string; // 110020
+  name: string; // 易方达沪深300ETF联接A
+  netWorth: number; // 单位净值
+  totalWorth: number; // 累计净值
+  dayGrowth: number; // 日涨跌幅 %
+  lastUpdate: string; // 更新日期
+}
+
+// 基金净值走势数据点
+export interface FundNetWorthData {
+  day: string; // 日期
+  netWorth: number; // 单位净值
+  totalWorth: number; // 累计净值
+  dayGrowth: number; // 日涨跌幅
+}
+
+// 基金搜索结果
+export interface FundSearchResult {
+  code: string; // 110020
+  name: string; // 易方达沪深300ETF联接A
+  type: string; // 基金类型
+}
+
+// 资产类型
+export type AssetType = "stock" | "fund";

@@ -7,17 +7,19 @@ import { TimeRangeSelector } from "@/components/time-range-selector";
 import { ProfitHero } from "@/components/profit-hero";
 import { PositionDialog } from "@/components/position-dialog";
 import { StockSearch } from "@/components/stock-search";
-import { useStockQuote, useKLineData, usePosition } from "@/hooks/use-stock";
-import type { StockSearchResult } from "@/lib/types/stock";
+import { useStockQuote, useKLineData, usePosition, useFundData } from "@/hooks/use-stock";
+import type { AssetType } from "@/lib/types/stock";
+import type { UnifiedSearchResult } from "@/hooks/use-stock";
 import { Loader2, TrendingUp, ChevronUp } from "lucide-react";
 
 export default function StockTrackerPage() {
   const [timeRange, setTimeRange] = useState("1D");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [selectedStock, setSelectedStock] = useState<{
+  const [selectedAsset, setSelectedAsset] = useState<{
     code: string;
     name: string;
+    type: AssetType;
   } | null>(null);
 
   // 监听滚动，显示/隐藏回到顶部按钮
@@ -33,13 +35,21 @@ export default function StockTrackerPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const { quote, loading: quoteLoading } = useStockQuote(
-    selectedStock?.code || null
+  // 股票数据
+  const { quote: stockQuote, loading: stockQuoteLoading } = useStockQuote(
+    selectedAsset?.type === "stock" ? selectedAsset.code : null
   );
-  const { chartData, loading: chartLoading } = useKLineData(
-    selectedStock?.code || null,
+  const { chartData: stockChartData, loading: stockChartLoading } = useKLineData(
+    selectedAsset?.type === "stock" ? selectedAsset.code : null,
     timeRange
   );
+
+  // 基金数据
+  const { quote: fundQuote, chartData: fundChartData, loading: fundLoading } = useFundData(
+    selectedAsset?.type === "fund" ? selectedAsset.code : null,
+    timeRange
+  );
+
   const {
     positions,
     initialized,
@@ -49,44 +59,66 @@ export default function StockTrackerPage() {
     touchPosition,
   } = usePosition();
 
-  // 获取当前股票的持仓信息
-  const currentPosition = selectedStock
-    ? getPositionByCode(selectedStock.code)
+  // 根据资产类型获取当前数据
+  const isStock = selectedAsset?.type === "stock";
+  const currentPrice = isStock ? stockQuote?.currentPrice : fundQuote?.netWorth;
+  const change = isStock ? stockQuote?.change : (fundQuote ? fundQuote.netWorth * fundQuote.dayGrowth / 100 : 0);
+  const changePercent = isStock ? stockQuote?.changePercent : fundQuote?.dayGrowth;
+  const chartData = isStock ? stockChartData : fundChartData;
+  const quoteLoading = isStock ? stockQuoteLoading : fundLoading;
+  const chartLoading = isStock ? stockChartLoading : fundLoading;
+  const hasQuote = isStock ? !!stockQuote : !!fundQuote;
+
+  // 获取当前资产的持仓信息
+  const currentPosition = selectedAsset
+    ? getPositionByCode(selectedAsset.code)
     : null;
 
   // 页面加载时，如果有持仓记录，默认选择第一个
   useEffect(() => {
-    if (initialized && !selectedStock && positions.length > 0) {
+    if (initialized && !selectedAsset && positions.length > 0) {
       const firstPosition = positions[0];
-      setSelectedStock({
+      // 根据代码格式判断类型：基金代码是纯数字6位
+      const isFund = /^\d{6}$/.test(firstPosition.stockCode);
+      setSelectedAsset({
         code: firstPosition.stockCode,
         name: firstPosition.stockName,
+        type: isFund ? "fund" : "stock",
       });
+      // 基金没有日线，默认使用1周
+      if (isFund) {
+        setTimeRange("1W");
+      }
     }
-  }, [positions, selectedStock, initialized]);
+  }, [positions, selectedAsset, initialized]);
 
-  const handleStockSelect = (stock: StockSearchResult) => {
-    setSelectedStock({
-      code: stock.code,
-      name: stock.name,
+  const handleAssetSelect = (result: UnifiedSearchResult) => {
+    setSelectedAsset({
+      code: result.code,
+      name: result.name,
+      type: result.type,
     });
-    // 如果选择的是已有持仓的股票，更新访问时间
-    const existingPosition = positions.find((p) => p.stockCode === stock.code);
+    // 基金没有日线，切换到1周
+    if (result.type === "fund" && timeRange === "1D") {
+      setTimeRange("1W");
+    }
+    // 如果选择的是已有持仓的资产，更新访问时间
+    const existingPosition = positions.find((p) => p.stockCode === result.code);
     if (existingPosition) {
-      touchPosition(stock.code);
+      touchPosition(result.code);
     }
   };
 
   const handleSavePosition = async (costPrice: string, shares: string) => {
-    if (!selectedStock) return;
+    if (!selectedAsset) return;
 
     const cost = parseFloat(costPrice);
     const sharesNum = parseInt(shares);
 
     if (cost > 0 && sharesNum > 0) {
       await savePosition({
-        stockCode: selectedStock.code,
-        stockName: selectedStock.name,
+        stockCode: selectedAsset.code,
+        stockName: selectedAsset.name,
         costPrice: cost,
         shares: sharesNum,
       });
@@ -94,28 +126,25 @@ export default function StockTrackerPage() {
   };
 
   const handleClearPosition = async () => {
-    if (selectedStock) {
-      await deletePosition(selectedStock.code);
+    if (selectedAsset) {
+      await deletePosition(selectedAsset.code);
     }
   };
 
-  const isUp = quote ? quote.change >= 0 : true;
+  const isUp = change !== undefined ? change >= 0 : true;
   const costPriceNum = currentPosition?.costPrice;
 
-  // 计算市值（简化处理）
-  const marketCap = quote
-    ? quote.amount > 100000000
-      ? `${(quote.amount / 100000000).toFixed(2)}亿`
-      : `${(quote.amount / 10000).toFixed(2)}万`
+  // 计算市值（仅股票显示）
+  const marketCap = isStock && stockQuote
+    ? stockQuote.amount > 100000000
+      ? `${(stockQuote.amount / 100000000).toFixed(2)}亿`
+      : `${(stockQuote.amount / 10000).toFixed(2)}万`
     : "-";
 
   // 判断是否需要显示加载动画
-  // 1. 持仓数据未初始化
-  // 2. 有持仓记录但还没选择股票（等待自动选择）
-  // 3. 已选择股票但数据还在加载
   const isInitialLoading = !initialized ||
-    (initialized && positions.length > 0 && !selectedStock) ||
-    (initialized && positions.length > 0 && selectedStock && !quote);
+    (initialized && positions.length > 0 && !selectedAsset) ||
+    (initialized && positions.length > 0 && selectedAsset && !hasQuote);
 
   // 初始加载动画
   if (isInitialLoading) {
@@ -139,51 +168,52 @@ export default function StockTrackerPage() {
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-4xl px-4 py-6 md:px-6 md:py-8">
-        {/* 股票搜索 */}
+        {/* 搜索 */}
         <section className="mb-6">
-          <StockSearch onSelect={handleStockSelect} />
+          <StockSearch onSelect={handleAssetSelect} />
         </section>
 
         {/* 加载状态 */}
-        {quoteLoading && !quote && (
+        {quoteLoading && !hasQuote && (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         )}
 
-        {/* 未选择股票时的提示 */}
-        {!selectedStock && !quoteLoading && (
+        {/* 未选择资产时的提示 */}
+        {!selectedAsset && !quoteLoading && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <p className="text-lg text-muted-foreground">搜索并选择一只股票</p>
+            <p className="text-lg text-muted-foreground">搜索并选择股票或基金</p>
             <p className="mt-2 text-sm text-muted-foreground/70">
-              输入股票代码或名称开始追踪
+              输入代码或名称开始追踪
             </p>
           </div>
         )}
 
-        {/* 股票信息展示 */}
-        {selectedStock && quote && (
+        {/* 资产信息展示 */}
+        {selectedAsset && hasQuote && currentPrice !== undefined && (
           <>
             {/* Profit Hero - 核心盈亏信息 */}
             <section className="mb-8">
               <ProfitHero
-                currentPrice={quote.currentPrice}
+                currentPrice={currentPrice}
                 costPrice={currentPosition?.costPrice?.toString() || ""}
                 shares={currentPosition?.shares?.toString() || ""}
-                stockName={quote.name}
-                stockSymbol={selectedStock.code}
-                change={quote.change}
-                changePercent={quote.changePercent}
+                stockName={selectedAsset.name}
+                stockSymbol={selectedAsset.code}
+                change={change || 0}
+                changePercent={changePercent || 0}
                 onEditClick={() => setDialogOpen(true)}
+                assetType={selectedAsset.type}
               />
             </section>
 
             {/* 次要信息: 图表和统计 */}
             <section className="space-y-4 opacity-80">
               {/* Time Range Selector */}
-              <TimeRangeSelector selected={timeRange} onSelect={setTimeRange} />
+              <TimeRangeSelector selected={timeRange} onSelect={setTimeRange} isFund={!isStock} />
 
-              {/* Stock Chart */}
+              {/* Chart */}
               {chartLoading ? (
                 <div className="flex h-[300px] items-center justify-center md:h-[400px]">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -201,14 +231,38 @@ export default function StockTrackerPage() {
                 </div>
               )}
 
-              {/* Stock Stats */}
-              <StockStats
-                open={quote.open}
-                high={quote.high}
-                low={quote.low}
-                volume={quote.volume}
-                marketCap={marketCap}
-              />
+              {/* Stats - 仅股票显示详细统计 */}
+              {isStock && stockQuote && (
+                <StockStats
+                  open={stockQuote.open}
+                  high={stockQuote.high}
+                  low={stockQuote.low}
+                  volume={stockQuote.volume}
+                  marketCap={marketCap}
+                />
+              )}
+
+              {/* 基金显示简化信息 */}
+              {!isStock && fundQuote && (
+                <div className="grid grid-cols-2 gap-4 rounded-lg bg-card p-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">单位净值</p>
+                    <p className="text-lg font-semibold text-foreground">
+                      {fundQuote.netWorth.toFixed(4)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">日涨跌幅</p>
+                    <p className={`text-lg font-semibold ${fundQuote.dayGrowth >= 0 ? "text-green-500" : "text-red-500"}`}>
+                      {fundQuote.dayGrowth >= 0 ? "+" : ""}{fundQuote.dayGrowth.toFixed(2)}%
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted-foreground">更新日期</p>
+                    <p className="text-sm text-foreground">{fundQuote.lastUpdate}</p>
+                  </div>
+                </div>
+              )}
             </section>
           </>
         )}
@@ -222,6 +276,7 @@ export default function StockTrackerPage() {
           onSave={handleSavePosition}
           onClear={handleClearPosition}
           hasPosition={!!currentPosition}
+          assetType={selectedAsset?.type || "stock"}
         />
       </div>
 
