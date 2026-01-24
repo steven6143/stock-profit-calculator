@@ -89,8 +89,14 @@ export default function StockTrackerPage() {
       : `${(quote.amount / 10000).toFixed(2)}万`
     : "-";
 
+  // 判断是否需要显示加载动画
+  // 1. 持仓数据未初始化
+  // 2. 有持仓记录但股票数据还在加载（首次加载）
+  const isInitialLoading = !initialized ||
+    (initialized && positions.length > 0 && !quote && quoteLoading);
+
   // 初始加载动画
-  if (!initialized) {
+  if (isInitialLoading) {
     return (
       <main className="min-h-screen bg-background">
         <div className="flex min-h-screen flex-col items-center justify-center">
