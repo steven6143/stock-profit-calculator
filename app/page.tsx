@@ -91,9 +91,11 @@ export default function StockTrackerPage() {
 
   // 判断是否需要显示加载动画
   // 1. 持仓数据未初始化
-  // 2. 有持仓记录但股票数据还在加载（首次加载）
+  // 2. 有持仓记录但还没选择股票（等待自动选择）
+  // 3. 已选择股票但数据还在加载
   const isInitialLoading = !initialized ||
-    (initialized && positions.length > 0 && !quote && quoteLoading);
+    (initialized && positions.length > 0 && !selectedStock) ||
+    (initialized && positions.length > 0 && selectedStock && !quote);
 
   // 初始加载动画
   if (isInitialLoading) {
