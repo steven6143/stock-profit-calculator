@@ -9,15 +9,29 @@ import { PositionDialog } from "@/components/position-dialog";
 import { StockSearch } from "@/components/stock-search";
 import { useStockQuote, useKLineData, usePosition } from "@/hooks/use-stock";
 import type { StockSearchResult } from "@/lib/types/stock";
-import { Loader2, TrendingUp } from "lucide-react";
+import { Loader2, TrendingUp, ChevronUp } from "lucide-react";
 
 export default function StockTrackerPage() {
   const [timeRange, setTimeRange] = useState("1D");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const [selectedStock, setSelectedStock] = useState<{
     code: string;
     name: string;
   } | null>(null);
+
+  // 监听滚动，显示/隐藏回到顶部按钮
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 200);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const { quote, loading: quoteLoading } = useStockQuote(
     selectedStock?.code || null
@@ -210,6 +224,17 @@ export default function StockTrackerPage() {
           hasPosition={!!currentPosition}
         />
       </div>
+
+      {/* 回到顶部按钮 */}
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-all hover:bg-primary/90 active:scale-95"
+          aria-label="回到顶部"
+        >
+          <ChevronUp className="h-6 w-6" />
+        </button>
+      )}
     </main>
   );
 }
