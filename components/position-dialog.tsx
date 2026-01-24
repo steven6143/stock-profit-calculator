@@ -42,17 +42,33 @@ export function PositionDialog({
   }, [open, costPrice, shares]);
 
   const handleSave = () => {
+    // 先让输入框失去焦点，收起键盘
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     onSave(localCostPrice, localShares);
     onOpenChange(false);
+    // 延迟滚动，等待键盘收起和弹窗关闭
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 300);
   };
 
   const handleClear = () => {
+    // 先让输入框失去焦点，收起键盘
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     if (onClear) {
       onClear();
     } else {
       onSave("", "");
     }
     onOpenChange(false);
+    // 延迟滚动，等待键盘收起和弹窗关闭
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 300);
   };
 
   return (

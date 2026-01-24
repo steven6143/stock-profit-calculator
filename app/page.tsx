@@ -76,16 +76,12 @@ export default function StockTrackerPage() {
         costPrice: cost,
         shares: sharesNum,
       });
-      // 保存后滚动到页面顶部
-      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
   const handleClearPosition = async () => {
     if (selectedStock) {
       await deletePosition(selectedStock.code);
-      // 清除后滚动到页面顶部
-      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
