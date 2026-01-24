@@ -13,7 +13,7 @@ const timeRanges = [
   { label: "1月", value: "1M" },
   { label: "3月", value: "3M" },
   { label: "1年", value: "1Y" },
-  { label: "全部", value: "ALL" },
+  { label: "4年", value: "ALL" },
 ]
 
 export function TimeRangeSelector({ selected, onSelect }: TimeRangeSelectorProps) {
