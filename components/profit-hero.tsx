@@ -115,7 +115,10 @@ export function ProfitHero({
         <div className="text-center">
           <p className="text-xs text-muted-foreground">{isFund ? "持有份额" : "持股数量"}</p>
           <p className="mt-1 font-mono text-sm font-medium text-foreground">
-            {sharesNum.toLocaleString()}{isFund ? "份" : "股"}
+            {isFund
+              ? sharesNum.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              : sharesNum.toLocaleString()
+            }{isFund ? "份" : "股"}
           </p>
         </div>
       </div>

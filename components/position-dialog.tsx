@@ -103,7 +103,7 @@ export function PositionDialog({
             <Input
               id="dialog-shares"
               type="number"
-              step={isFund ? "1" : "100"}
+              step={isFund ? "0.01" : "100"}
               placeholder={isFund ? "输入您的持有份额" : "输入您的持股数量"}
               value={localShares}
               onChange={(e) => setLocalShares(e.target.value)}

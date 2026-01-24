@@ -113,7 +113,7 @@ export default function StockTrackerPage() {
     if (!selectedAsset) return;
 
     const cost = parseFloat(costPrice);
-    const sharesNum = parseInt(shares);
+    const sharesNum = parseFloat(shares); // 使用 parseFloat 支持基金份额小数
 
     if (cost > 0 && sharesNum > 0) {
       await savePosition({
