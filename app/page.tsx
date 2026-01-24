@@ -173,6 +173,7 @@ export default function StockTrackerPage() {
                   data={chartData}
                   isUp={isUp}
                   costPrice={costPriceNum}
+                  timeRange={timeRange}
                 />
               ) : (
                 <div className="flex h-[300px] items-center justify-center text-muted-foreground md:h-[400px]">

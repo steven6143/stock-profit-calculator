@@ -7,9 +7,10 @@ interface StockChartProps {
   data: { time: string; price: number }[]
   isUp: boolean
   costPrice?: number
+  timeRange?: string
 }
 
-export function StockChart({ data, isUp, costPrice }: StockChartProps) {
+export function StockChart({ data, isUp, costPrice, timeRange }: StockChartProps) {
   const chartColor = isUp ? "#ef4444" : "#22c55e"
   const gradientId = isUp ? "fillUp" : "fillDown"
 
@@ -49,14 +50,20 @@ export function StockChart({ data, isUp, costPrice }: StockChartProps) {
             tick={{ fill: "#6b7280", fontSize: 10 }}
             tickMargin={8}
             tickFormatter={(value) => {
-              // 只显示时间部分，不显示日期
+              // 日内数据：只显示时间 (如 "11:10")
               if (value.includes(" ")) {
                 const timePart = value.split(" ")[1]
-                // 只保留小时:分钟
                 return timePart ? timePart.slice(0, 5) : value
               }
-              // 如果是日期格式（如 2026-01-23），只显示月-日
+              // 日期格式
               if (value.includes("-") && value.length === 10) {
+                // 全部数据：显示年月 (如 "24/01")
+                if (timeRange === "ALL") {
+                  const year = value.slice(2, 4)
+                  const month = value.slice(5, 7)
+                  return `${year}/${month}`
+                }
+                // 其他周期：显示月-日 (如 "01-23")
                 return value.slice(5)
               }
               return value
