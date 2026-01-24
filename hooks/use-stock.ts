@@ -59,39 +59,42 @@ export function useKLineData(code: string | null, range: string) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchData = useCallback(async () => {
+    if (!code) {
+      setData([]);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/stock/kline?code=${code}&range=${range}`);
+      const result = await res.json();
+
+      if (result.success) {
+        setData(result.data);
+      } else {
+        setError(result.error || "获取K线数据失败");
+      }
+    } catch {
+      setError("网络错误");
+    } finally {
+      setLoading(false);
+    }
+  }, [code, range]);
+
   // 当股票代码变化时，立即清空旧数据
   useEffect(() => {
     setData([]);
   }, [code]);
 
   useEffect(() => {
-    if (!code) {
-      setData([]);
-      return;
-    }
-
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const res = await fetch(`/api/stock/kline?code=${code}&range=${range}`);
-        const result = await res.json();
-
-        if (result.success) {
-          setData(result.data);
-        } else {
-          setError(result.error || "获取K线数据失败");
-        }
-      } catch {
-        setError("网络错误");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchData();
-  }, [code, range]);
+    // 每10分钟刷新一次
+    const interval = setInterval(fetchData, 600000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
 
   // 转换为图表数据格式
   const chartData: ChartDataPoint[] = data.map((item) => ({
@@ -99,7 +102,7 @@ export function useKLineData(code: string | null, range: string) {
     price: item.close,
   }));
 
-  return { data, chartData, loading, error };
+  return { data, chartData, loading, error, refetch: fetchData };
 }
 
 // 搜索股票
