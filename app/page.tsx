@@ -23,7 +23,7 @@ export default function StockTrackerPage() {
   // 监听滚动，显示/隐藏回到顶部按钮
   useEffect(() => {
     const handleScroll = () => {
-      setShowScrollTop(window.scrollY > 200);
+      setShowScrollTop(window.scrollY > 10);
     };
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
