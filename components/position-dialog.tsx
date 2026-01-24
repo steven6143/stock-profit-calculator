@@ -85,7 +85,7 @@ export function PositionDialog({
             <Input
               id="dialog-cost"
               type="number"
-              step="0.01"
+              step="0.000001"
               placeholder="输入您的买入均价"
               value={localCostPrice}
               onChange={(e) => setLocalCostPrice(e.target.value)}
