@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,47 +32,44 @@ interface PortfolioSummary {
   totalProfitPercent: number;
 }
 
+interface PortfolioData {
+  items: PortfolioItem[];
+  summary: PortfolioSummary;
+}
+
 interface PortfolioDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelectAsset?: (code: string, name: string, assetType: "stock" | "fund") => void;
+  preloadedData?: PortfolioData | null;
+  preloadedLoading?: boolean;
+  onRefresh?: () => void;
 }
 
 export function PortfolioDialog({
   open,
   onOpenChange,
   onSelectAsset,
+  preloadedData,
+  preloadedLoading,
+  onRefresh,
 }: PortfolioDialogProps) {
-  const [loading, setLoading] = useState(false);
-  const [items, setItems] = useState<PortfolioItem[]>([]);
-  const [summary, setSummary] = useState<PortfolioSummary>({
+  // 使用预加载的数据，如果没有则使用本地状态
+  const items = preloadedData?.items ?? [];
+  const summary = preloadedData?.summary ?? {
     totalCost: 0,
     totalMarketValue: 0,
     totalProfit: 0,
     totalProfitPercent: 0,
-  });
-
-  useEffect(() => {
-    if (open) {
-      fetchPortfolio();
-    }
-  }, [open]);
-
-  const fetchPortfolio = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/portfolio");
-      const result = await response.json();
-      if (result.success && result.data) {
-        setItems(result.data.items);
-        setSummary(result.data.summary);
-      }
-    } catch (error) {
-      console.error("获取投资组合失败:", error);
-    } finally {
-      setLoading(false);
-    }
   };
+  const loading = preloadedLoading ?? false;
+
+  // 打开弹窗时，如果有刷新函数则调用（确保数据最新）
+  useEffect(() => {
+    if (open && onRefresh) {
+      onRefresh();
+    }
+  }, [open, onRefresh]);
 
   const handleSelectItem = (item: PortfolioItem) => {
     if (onSelectAsset) {
@@ -81,12 +78,13 @@ export function PortfolioDialog({
     onOpenChange(false);
   };
 
-  const formatNumber = (num: number | null, decimals: number = 2): string => {
-    if (num === null) return "--";
+  const formatNumber = (num: number | null | undefined, decimals: number = 2): string => {
+    if (num === null || num === undefined) return "--";
     return num.toFixed(decimals);
   };
 
-  const formatShares = (shares: number, assetType: string): string => {
+  const formatShares = (shares: number | undefined, assetType: string): string => {
+    if (shares === undefined) return "--";
     return assetType === "fund" ? shares.toFixed(2) : shares.toString();
   };
 

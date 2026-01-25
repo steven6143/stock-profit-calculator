@@ -12,7 +12,33 @@ import { useStockQuote, useKLineData, usePosition, useFundData } from "@/hooks/u
 import type { AssetType } from "@/lib/types/stock";
 import type { UnifiedSearchResult } from "@/hooks/use-stock";
 import { Loader2, TrendingUp, ChevronUp, Wallet } from "lucide-react";
-import { Button } from "@/components/ui/button";
+
+// Portfolio 数据类型
+interface PortfolioItem {
+  id: string;
+  code: string;
+  name: string;
+  assetType: "stock" | "fund";
+  costPrice: number;
+  shares: number;
+  currentPrice: number | null;
+  totalCost: number;
+  marketValue: number | null;
+  profit: number | null;
+  profitPercent: number | null;
+}
+
+interface PortfolioSummary {
+  totalCost: number;
+  totalMarketValue: number;
+  totalProfit: number;
+  totalProfitPercent: number;
+}
+
+interface PortfolioData {
+  items: PortfolioItem[];
+  summary: PortfolioSummary;
+}
 
 export default function StockTrackerPage() {
   const [timeRange, setTimeRange] = useState("1D");
@@ -25,6 +51,10 @@ export default function StockTrackerPage() {
     type: AssetType;
   } | null>(null);
 
+  // Portfolio 预加载状态
+  const [portfolioData, setPortfolioData] = useState<PortfolioData | null>(null);
+  const [portfolioLoading, setPortfolioLoading] = useState(false);
+
   // 监听滚动，显示/隐藏回到顶部按钮
   useEffect(() => {
     const handleScroll = () => {
@@ -33,6 +63,22 @@ export default function StockTrackerPage() {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  // 预加载 Portfolio 数据的函数
+  const fetchPortfolio = async () => {
+    setPortfolioLoading(true);
+    try {
+      const response = await fetch("/api/portfolio");
+      const result = await response.json();
+      if (result.success && result.data) {
+        setPortfolioData(result.data);
+      }
+    } catch (error) {
+      console.error("预加载投资组合失败:", error);
+    } finally {
+      setPortfolioLoading(false);
+    }
+  };
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -61,6 +107,13 @@ export default function StockTrackerPage() {
     getPositionByCode,
     touchPosition,
   } = usePosition();
+
+  // 页面加载完成后预加载 Portfolio 数据
+  useEffect(() => {
+    if (initialized && positions.length > 0) {
+      fetchPortfolio();
+    }
+  }, [initialized, positions.length]);
 
   // 根据资产类型获取当前数据
   const isStock = selectedAsset?.type === "stock";
@@ -139,12 +192,16 @@ export default function StockTrackerPage() {
         costPrice: cost,
         shares: sharesNum,
       });
+      // 持仓变化后重新拉取 Portfolio 数据
+      fetchPortfolio();
     }
   };
 
   const handleClearPosition = async () => {
     if (selectedAsset) {
       await deletePosition(selectedAsset.code);
+      // 持仓变化后重新拉取 Portfolio 数据
+      fetchPortfolio();
     }
   };
 
@@ -185,22 +242,9 @@ export default function StockTrackerPage() {
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-4xl px-4 py-6 md:px-6 md:py-8">
-        {/* 搜索和持仓按钮 */}
+        {/* 搜索框 */}
         <section className="mb-6">
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <StockSearch onSelect={handleAssetSelect} />
-            </div>
-            <Button
-              onClick={() => setPortfolioOpen(true)}
-              variant="outline"
-              size="icon"
-              className="h-10 w-10 shrink-0 border-border/50 bg-secondary/50 hover:bg-secondary"
-              title="我的持仓"
-            >
-              <Wallet className="h-5 w-5" />
-            </Button>
-          </div>
+          <StockSearch onSelect={handleAssetSelect} />
         </section>
 
         {/* 加载状态 */}
@@ -314,7 +358,22 @@ export default function StockTrackerPage() {
           open={portfolioOpen}
           onOpenChange={setPortfolioOpen}
           onSelectAsset={handlePortfolioSelect}
+          preloadedData={portfolioData}
+          preloadedLoading={portfolioLoading}
+          onRefresh={fetchPortfolio}
         />
+      </div>
+
+      {/* 悬浮按钮组 */}
+      <div className="fixed right-6 z-40 flex flex-col gap-3 transition-all duration-300" style={{ bottom: showScrollTop ? '4.5rem' : '1.5rem' }}>
+        {/* 持仓按钮 - 始终显示 */}
+        <button
+          onClick={() => setPortfolioOpen(true)}
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary border border-border text-muted-foreground shadow-lg transition-all hover:bg-secondary/80 hover:text-foreground active:scale-95"
+          aria-label="我的持仓"
+        >
+          <Wallet className="h-5 w-5" />
+        </button>
       </div>
 
       {/* 回到顶部按钮 */}
