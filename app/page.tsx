@@ -365,7 +365,7 @@ export default function StockTrackerPage() {
       </div>
 
       {/* 悬浮按钮组 */}
-      <div className="fixed right-6 z-40 flex flex-col gap-3 transition-all duration-300" style={{ bottom: showScrollTop ? '4.5rem' : '1.5rem' }}>
+      <div className="fixed right-6 z-40 flex flex-col gap-3 transition-all duration-300" style={{ bottom: showScrollTop ? '5.5rem' : '1.5rem' }}>
         {/* 持仓按钮 - 始终显示 */}
         <button
           onClick={() => setPortfolioOpen(true)}
