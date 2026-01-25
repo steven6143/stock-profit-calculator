@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -216,28 +216,29 @@ export function PortfolioDialog({
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">盈亏总和:</span>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`font-semibold ${
-                      summary.totalProfit >= 0
-                        ? "text-stock-up"
-                        : "text-stock-down"
-                    }`}
-                  >
-                    {summary.totalProfit >= 0 ? "+" : ""}
-                    ¥{formatNumber(summary.totalProfit)}
-                  </span>
-                  <span
-                    className={`font-semibold ${
-                      summary.totalProfitPercent >= 0
-                        ? "text-stock-up"
-                        : "text-stock-down"
-                    }`}
-                  >
-                    ({summary.totalProfitPercent >= 0 ? "+" : ""}
-                    {formatNumber(summary.totalProfitPercent)}%)
-                  </span>
-                </div>
+                <span
+                  className={`font-semibold ${
+                    summary.totalProfit >= 0
+                      ? "text-stock-up"
+                      : "text-stock-down"
+                  }`}
+                >
+                  {summary.totalProfit >= 0 ? "+" : ""}
+                  ¥{formatNumber(summary.totalProfit)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">盈亏比例:</span>
+                <span
+                  className={`font-semibold ${
+                    summary.totalProfitPercent >= 0
+                      ? "text-stock-up"
+                      : "text-stock-down"
+                  }`}
+                >
+                  {summary.totalProfitPercent >= 0 ? "+" : ""}
+                  {formatNumber(summary.totalProfitPercent)}%
+                </span>
               </div>
             </div>
           </>

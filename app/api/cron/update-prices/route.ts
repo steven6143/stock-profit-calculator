@@ -43,7 +43,7 @@ async function fetchAssetPrice(code: string): Promise<number | null> {
   try {
     if (isFundCode(code)) {
       const fundData = await fetchFundData(code);
-      return fundData.netWorth;
+      return fundData.quote?.netWorth ?? null;
     } else {
       const quote = await fetchStockQuote(code);
       return quote.currentPrice;
