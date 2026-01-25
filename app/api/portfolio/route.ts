@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAllPositions, getBatchCachedPricesFromDb } from "@/lib/db";
+import { getAllPositionsWithPrices } from "@/lib/db";
 
 // 判断是否为基金代码（6位纯数字）
 function isFundCode(code: string): boolean {
@@ -63,18 +63,15 @@ function calculateProfitData(items: PortfolioItem[]): PortfolioSummary {
 }
 
 // 获取投资组合
-// 直接从数据库获取成本和缓存价格，不调用外部 API，速度最快
+// 使用单次 JOIN 查询获取所有数据，速度最快
 export async function GET() {
   try {
-    // 并行获取持仓和价格缓存
-    const positions = await getAllPositions();
-    const codes = positions.map((p) => p.stockCode);
-    const cachedPrices = await getBatchCachedPricesFromDb(codes);
+    // 单次查询获取持仓和缓存价格
+    const positionsWithPrices = await getAllPositionsWithPrices();
 
-    // 直接使用数据库缓存的价格计算
-    const items: PortfolioItem[] = positions.map((position) => {
-      const cached = cachedPrices.get(position.stockCode);
-      const currentPrice = cached?.price ?? null;
+    // 直接计算
+    const items: PortfolioItem[] = positionsWithPrices.map((position) => {
+      const currentPrice = position.cachedPrice;
       const totalCost = position.costPrice * position.shares;
       const marketValue = currentPrice !== null ? currentPrice * position.shares : null;
       const profit = marketValue !== null ? marketValue - totalCost : null;

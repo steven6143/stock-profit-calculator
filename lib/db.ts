@@ -275,3 +275,39 @@ export async function getAllPositionCodes(): Promise<string[]> {
   const result = await client.execute("SELECT stockCode FROM positions");
   return result.rows.map((row) => row.stockCode as string);
 }
+
+// 一次性获取所有持仓及其缓存价格（优化版，单次查询）
+export interface PositionWithPrice {
+  id: string;
+  stockCode: string;
+  stockName: string;
+  costPrice: number;
+  shares: number;
+  cachedPrice: number | null;
+}
+
+export async function getAllPositionsWithPrices(): Promise<PositionWithPrice[]> {
+  const client = getDb();
+  await initDb();
+
+  const result = await client.execute(`
+    SELECT
+      p.id,
+      p.stockCode,
+      p.stockName,
+      p.costPrice,
+      p.shares,
+      c.price as cachedPrice
+    FROM positions p
+    LEFT JOIN price_cache c ON p.stockCode = c.code
+  `);
+
+  return result.rows.map((row) => ({
+    id: row.id as string,
+    stockCode: row.stockCode as string,
+    stockName: row.stockName as string,
+    costPrice: row.costPrice as number,
+    shares: row.shares as number,
+    cachedPrice: row.cachedPrice as number | null,
+  }));
+}
