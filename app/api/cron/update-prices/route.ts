@@ -58,7 +58,11 @@ async function fetchAssetPrice(code: string): Promise<number | null> {
 // 可通过外部 cron 服务（如 cron-job.org）定时调用
 // 也可配置 Vercel Cron（需要 Pro 计划才能高频调用）
 export async function GET(request: Request) {
+  const debugInfo: string[] = [];
+
   try {
+    debugInfo.push("开始执行");
+
     // 验证 cron secret（可选，防止未授权调用）
     const authHeader = request.headers.get("authorization");
     const cronSecret = process.env.CRON_SECRET;
@@ -75,8 +79,11 @@ export async function GET(request: Request) {
     const forceUpdate = searchParams.get("force") === "true";
     const typeFilter = searchParams.get("type"); // "stock" | "fund" | null (all)
 
+    debugInfo.push("获取持仓代码");
+
     // 获取所有持仓代码
     const allCodes = await getAllPositionCodes();
+    debugInfo.push(`持仓代码: ${JSON.stringify(allCodes)}`);
 
     if (allCodes.length === 0) {
       return NextResponse.json({
@@ -106,6 +113,8 @@ export async function GET(request: Request) {
       }
     }
 
+    debugInfo.push(`需要更新: ${JSON.stringify(codesToUpdate)}`);
+
     if (codesToUpdate.length === 0) {
       return NextResponse.json({
         success: true,
@@ -116,6 +125,8 @@ export async function GET(request: Request) {
       });
     }
 
+    debugInfo.push("开始获取价格");
+
     // 并行获取所有价格
     const priceResults = await Promise.all(
       codesToUpdate.map(async (code) => {
@@ -124,17 +135,23 @@ export async function GET(request: Request) {
       })
     );
 
+    debugInfo.push(`价格结果: ${JSON.stringify(priceResults)}`);
+
     // 过滤成功获取的价格
     const validPrices = new Map<string, number>();
     for (const { code, price } of priceResults) {
-      if (price !== null) {
+      if (price !== null && typeof price === 'number') {
         validPrices.set(code, price);
       }
     }
 
+    debugInfo.push(`有效价格数量: ${validPrices.size}`);
+
     // 批量更新数据库
     if (validPrices.size > 0) {
+      debugInfo.push("开始更新数据库");
       await updateBatchCachedPrices(validPrices);
+      debugInfo.push("数据库更新完成");
     }
 
     return NextResponse.json({
@@ -149,7 +166,7 @@ export async function GET(request: Request) {
     console.error("更新价格失败:", error);
     const errorMessage = error instanceof Error ? error.message : "未知错误";
     return NextResponse.json(
-      { success: false, error: "更新价格失败", detail: errorMessage },
+      { success: false, error: "更新价格失败", detail: errorMessage, debug: debugInfo },
       { status: 500 }
     );
   }
