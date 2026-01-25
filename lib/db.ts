@@ -32,6 +32,15 @@ export async function initDb() {
       updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // 价格缓存表
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS price_cache (
+      code TEXT PRIMARY KEY,
+      price REAL NOT NULL,
+      updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 }
 
 // 生成唯一 ID
@@ -163,4 +172,106 @@ export async function touchPosition(stockCode: string): Promise<void> {
     sql: "UPDATE positions SET updatedAt = ? WHERE stockCode = ?",
     args: [now, stockCode],
   });
+}
+
+// ============ 价格缓存相关 ============
+
+export interface CachedPrice {
+  code: string;
+  price: number;
+  updatedAt: string;
+}
+
+// 获取缓存的价格
+export async function getCachedPriceFromDb(code: string): Promise<CachedPrice | null> {
+  const client = getDb();
+  await initDb();
+
+  const result = await client.execute({
+    sql: "SELECT * FROM price_cache WHERE code = ?",
+    args: [code],
+  });
+
+  if (result.rows.length === 0) return null;
+
+  const row = result.rows[0];
+  return {
+    code: row.code as string,
+    price: row.price as number,
+    updatedAt: row.updatedAt as string,
+  };
+}
+
+// 批量获取缓存的价格
+export async function getBatchCachedPricesFromDb(codes: string[]): Promise<Map<string, CachedPrice>> {
+  const client = getDb();
+  await initDb();
+
+  if (codes.length === 0) return new Map();
+
+  const placeholders = codes.map(() => "?").join(",");
+  const result = await client.execute({
+    sql: `SELECT * FROM price_cache WHERE code IN (${placeholders})`,
+    args: codes,
+  });
+
+  const priceMap = new Map<string, CachedPrice>();
+  for (const row of result.rows) {
+    priceMap.set(row.code as string, {
+      code: row.code as string,
+      price: row.price as number,
+      updatedAt: row.updatedAt as string,
+    });
+  }
+
+  return priceMap;
+}
+
+// 更新单个价格缓存
+export async function updateCachedPrice(code: string, price: number): Promise<void> {
+  const client = getDb();
+  await initDb();
+
+  const now = new Date().toISOString();
+  await client.execute({
+    sql: `
+      INSERT INTO price_cache (code, price, updatedAt)
+      VALUES (?, ?, ?)
+      ON CONFLICT(code) DO UPDATE SET
+        price = excluded.price,
+        updatedAt = excluded.updatedAt
+    `,
+    args: [code, price, now],
+  });
+}
+
+// 批量更新价格缓存
+export async function updateBatchCachedPrices(prices: Map<string, number>): Promise<void> {
+  const client = getDb();
+  await initDb();
+
+  const now = new Date().toISOString();
+
+  // 使用事务批量更新
+  const statements = Array.from(prices.entries()).map(([code, price]) => ({
+    sql: `
+      INSERT INTO price_cache (code, price, updatedAt)
+      VALUES (?, ?, ?)
+      ON CONFLICT(code) DO UPDATE SET
+        price = excluded.price,
+        updatedAt = excluded.updatedAt
+    `,
+    args: [code, price, now],
+  }));
+
+  await client.batch(statements);
+}
+
+// 获取所有持仓的代码
+export async function getAllPositionCodes(): Promise<string[]> {
+  const client = getDb();
+  await initDb();
+
+  const result = await client.execute("SELECT stockCode FROM positions");
+  return result.rows.map((row) => row.stockCode as string);
 }

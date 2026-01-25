@@ -1,35 +1,26 @@
 import { NextResponse } from "next/server";
-import { getAllPositions } from "@/lib/db";
+import { getAllPositions, getBatchCachedPricesFromDb, updateCachedPrice } from "@/lib/db";
 import { fetchStockQuote } from "@/lib/services/sina-stock";
 import { fetchFundData } from "@/lib/services/eastmoney-fund";
-import { getCachedPrice, setCachedPrice } from "@/lib/services/price-cache";
 
 // 判断是否为基金代码（6位纯数字）
 function isFundCode(code: string): boolean {
   return /^\d{6}$/.test(code);
 }
 
-// 获取资产实时价格（带缓存）
-async function getAssetPrice(code: string): Promise<number | null> {
-  // 先检查缓存
-  const cachedPrice = getCachedPrice(code);
-  if (cachedPrice !== null) {
-    return cachedPrice;
-  }
-
+// 获取资产实时价格并更新数据库缓存
+async function fetchAndCachePrice(code: string): Promise<number | null> {
   try {
     let price: number;
     if (isFundCode(code)) {
-      // 基金
       const fundData = await fetchFundData(code);
       price = fundData.netWorth;
     } else {
-      // 股票
       const quote = await fetchStockQuote(code);
       price = quote.currentPrice;
     }
-    // 缓存价格
-    setCachedPrice(code, price);
+    // 更新数据库缓存
+    await updateCachedPrice(code, price);
     return price;
   } catch (error) {
     console.error(`获取 ${code} 价格失败:`, error);
@@ -101,12 +92,16 @@ export async function GET(request: Request) {
     const quickMode = searchParams.get("quick") === "true";
 
     const positions = await getAllPositions();
+    const codes = positions.map((p) => p.stockCode);
+
+    // 从数据库获取缓存的价格
+    const cachedPrices = await getBatchCachedPricesFromDb(codes);
 
     if (quickMode) {
-      // 快速模式：只返回静态数据，不请求实时价格
-      // 但会尝试使用缓存的价格
+      // 快速模式：只返回静态数据 + 数据库缓存的价格
       const items: PortfolioItem[] = positions.map((position) => {
-        const cachedPrice = getCachedPrice(position.stockCode);
+        const cached = cachedPrices.get(position.stockCode);
+        const cachedPrice = cached?.price ?? null;
         const totalCost = position.costPrice * position.shares;
         const marketValue = cachedPrice ? cachedPrice * position.shares : null;
         const profit = marketValue !== null ? marketValue - totalCost : null;
@@ -139,10 +134,18 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, data: response });
     }
 
-    // 完整模式：获取所有持仓的实时价格（带缓存）
+    // 完整模式：获取所有持仓的实时价格
     const items: PortfolioItem[] = await Promise.all(
       positions.map(async (position) => {
-        const currentPrice = await getAssetPrice(position.stockCode);
+        // 先尝试使用数据库缓存
+        const cached = cachedPrices.get(position.stockCode);
+        let currentPrice = cached?.price ?? null;
+
+        // 如果没有缓存，则实时获取
+        if (currentPrice === null) {
+          currentPrice = await fetchAndCachePrice(position.stockCode);
+        }
+
         const totalCost = position.costPrice * position.shares;
         const marketValue = currentPrice ? currentPrice * position.shares : null;
         const profit = marketValue !== null ? marketValue - totalCost : null;
