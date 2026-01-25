@@ -1,9 +1,17 @@
 // Turso HTTP API 客户端 - 兼容 Cloudflare Workers
 
+interface TursoResult {
+  cols: Array<{ name: string }>;
+  rows: Array<Array<{ type: string; value: string | number | null }>>;
+}
+
 interface TursoResponse {
   results: Array<{
-    columns: string[];
-    rows: Array<Array<string | number | null>>;
+    type: string;
+    response?: {
+      type: string;
+      result?: TursoResult;
+    };
   }>;
 }
 
@@ -16,8 +24,8 @@ async function executeSQL(sql: string, args: (string | number | null)[] = []): P
     throw new Error("Missing TURSO_DATABASE_URL or TURSO_AUTH_TOKEN");
   }
 
-  // 将 libsql:// 转换为 https://
-  const httpUrl = url.replace("libsql://", "https://");
+  // 将 libsql:// 转换为 https:// 并添加 /v2/pipeline
+  const httpUrl = url.replace("libsql://", "https://") + "/v2/pipeline";
 
   const response = await fetch(httpUrl, {
     method: "POST",
@@ -26,15 +34,23 @@ async function executeSQL(sql: string, args: (string | number | null)[] = []): P
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      statements: [
+      requests: [
         {
-          q: sql,
-          params: args.map(arg => {
-            if (arg === null) return { type: "null", value: null };
-            if (typeof arg === "number") return { type: "float", value: String(arg) };
-            return { type: "text", value: String(arg) };
-          }),
+          type: "execute",
+          stmt: {
+            sql,
+            args: args.map(arg => {
+              if (arg === null) return { type: "null", value: null };
+              if (typeof arg === "number") {
+                return Number.isInteger(arg)
+                  ? { type: "integer", value: String(arg) }
+                  : { type: "float", value: String(arg) };
+              }
+              return { type: "text", value: String(arg) };
+            }),
+          },
         },
+        { type: "close" },
       ],
     }),
   });
@@ -51,11 +67,17 @@ async function executeSQL(sql: string, args: (string | number | null)[] = []): P
   }
 
   const result = data.results[0];
-  const columns = result.columns || [];
-  const rows = (result.rows || []).map(row => {
+  if (result.type !== "ok" || !result.response?.result) {
+    return { columns: [], rows: [] };
+  }
+
+  const queryResult = result.response.result;
+  const columns = queryResult.cols?.map(col => col.name) || [];
+  const rows = (queryResult.rows || []).map(row => {
     const obj: Record<string, unknown> = {};
     columns.forEach((col, i) => {
-      obj[col] = row[i];
+      const cell = row[i];
+      obj[col] = cell?.value ?? null;
     });
     return obj;
   });
