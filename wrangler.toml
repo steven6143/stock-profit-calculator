@@ -1,7 +1,7 @@
 #:schema node_modules/wrangler/config-schema.json
 
 name = "stock-profit-calculator"
-main = ".open-next/worker.js"
+main = "worker.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
@@ -29,3 +29,12 @@ head_sampling_rate = 1
 binding = "DB"
 database_name = "stock-profit-db"
 database_id = "5bc310a3-7ae4-4745-80f2-45e496d0251f"
+
+# Cron Triggers - 定时更新价格
+# 股票：周一至周五 9:30-15:00 每1分钟（UTC+8，所以 UTC 是 1:30-7:00）
+# 基金：每天 20:00 更新（UTC 12:00）
+[triggers]
+crons = [
+  "* 1-7 * * 1-5",   # 股票价格：工作日 UTC 1:00-7:59（北京时间 9:00-15:59）每分钟
+  "0 12 * * *"       # 基金净值：每天 UTC 12:00（北京时间 20:00）
+]
