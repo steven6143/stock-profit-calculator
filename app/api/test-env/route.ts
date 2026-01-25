@@ -8,15 +8,11 @@ export async function GET() {
 
     return NextResponse.json({
       hasD1: !!db,
-      hasTursoUrl: !!process.env.TURSO_DATABASE_URL,
-      hasTursoToken: !!process.env.TURSO_AUTH_TOKEN,
       envKeys: Object.keys(env || {}),
     });
   } catch (error) {
     return NextResponse.json({
       error: error instanceof Error ? error.message : "Unknown error",
-      hasTursoUrl: !!process.env.TURSO_DATABASE_URL,
-      hasTursoToken: !!process.env.TURSO_AUTH_TOKEN,
     });
   }
 }

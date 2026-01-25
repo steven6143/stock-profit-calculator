@@ -26,7 +26,7 @@ async function initDb() {
       stockCode TEXT UNIQUE NOT NULL,
       stockName TEXT NOT NULL,
       costPrice REAL NOT NULL,
-      shares INTEGER NOT NULL,
+      shares REAL NOT NULL,
       createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
       updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
     )
