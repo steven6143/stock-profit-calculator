@@ -9,6 +9,7 @@ const config: OpenNextConfig = {
       incrementalCache: "dummy",
       tagCache: "dummy",
       queue: "dummy",
+      imageOptimizer: "none",
     },
   },
   edgeExternals: ["node:crypto"],

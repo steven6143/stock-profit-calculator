@@ -24,7 +24,8 @@ enabled = false
 persist = true
 head_sampling_rate = 1
 
-# 环境变量（部署时在 Cloudflare Dashboard 设置）
-# [vars]
-# TURSO_DATABASE_URL = ""
-# TURSO_AUTH_TOKEN = ""
+# D1 数据库绑定
+[[d1_databases]]
+binding = "DB"
+database_name = "stock-profit-db"
+database_id = "5bc310a3-7ae4-4745-80f2-45e496d0251f"
