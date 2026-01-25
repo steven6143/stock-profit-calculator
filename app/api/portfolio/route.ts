@@ -26,7 +26,7 @@ async function getAssetPrice(code: string): Promise<number | null> {
   }
 }
 
-export interface PortfolioItem {
+interface PortfolioItem {
   id: string;
   code: string;
   name: string;
@@ -40,14 +40,14 @@ export interface PortfolioItem {
   profitPercent: number | null;
 }
 
-export interface PortfolioSummary {
+interface PortfolioSummary {
   totalCost: number;
   totalMarketValue: number;
   totalProfit: number;
   totalProfitPercent: number;
 }
 
-export interface PortfolioResponse {
+interface PortfolioResponse {
   items: PortfolioItem[];
   summary: PortfolioSummary;
 }
