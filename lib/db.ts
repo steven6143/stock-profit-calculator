@@ -1,27 +1,76 @@
-import { createClient, type Client } from "@libsql/client/web";
+// Turso HTTP API 客户端 - 兼容 Cloudflare Workers
 
-// 数据库客户端单例
-let db: Client | null = null;
-
-export function getDb(): Client {
-  if (db) return db;
-
-  const url = process.env.TURSO_DATABASE_URL || "file:./data/local.db";
-  const authToken = process.env.TURSO_AUTH_TOKEN;
-
-  db = createClient({
-    url,
-    authToken,
-  });
-
-  return db;
+interface TursoResponse {
+  results: Array<{
+    columns: string[];
+    rows: Array<Array<string | number | null>>;
+  }>;
 }
 
-// 初始化数据库表
-export async function initDb() {
-  const client = getDb();
+// 执行 SQL 查询
+async function executeSQL(sql: string, args: (string | number | null)[] = []): Promise<{ columns: string[]; rows: Array<Record<string, unknown>> }> {
+  const url = process.env.TURSO_DATABASE_URL;
+  const authToken = process.env.TURSO_AUTH_TOKEN;
 
-  await client.execute(`
+  if (!url || !authToken) {
+    throw new Error("Missing TURSO_DATABASE_URL or TURSO_AUTH_TOKEN");
+  }
+
+  // 将 libsql:// 转换为 https://
+  const httpUrl = url.replace("libsql://", "https://");
+
+  const response = await fetch(httpUrl, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${authToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      statements: [
+        {
+          q: sql,
+          params: args.map(arg => {
+            if (arg === null) return { type: "null", value: null };
+            if (typeof arg === "number") return { type: "float", value: String(arg) };
+            return { type: "text", value: String(arg) };
+          }),
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Turso API error: ${response.status} - ${text}`);
+  }
+
+  const data = await response.json() as TursoResponse;
+
+  if (!data.results || data.results.length === 0) {
+    return { columns: [], rows: [] };
+  }
+
+  const result = data.results[0];
+  const columns = result.columns || [];
+  const rows = (result.rows || []).map(row => {
+    const obj: Record<string, unknown> = {};
+    columns.forEach((col, i) => {
+      obj[col] = row[i];
+    });
+    return obj;
+  });
+
+  return { columns, rows };
+}
+
+// 初始化标记
+let initialized = false;
+
+// 初始化数据库表
+async function initDb() {
+  if (initialized) return;
+
+  await executeSQL(`
     CREATE TABLE IF NOT EXISTS positions (
       id TEXT PRIMARY KEY,
       stockCode TEXT UNIQUE NOT NULL,
@@ -33,8 +82,7 @@ export async function initDb() {
     )
   `);
 
-  // 价格缓存表
-  await client.execute(`
+  await executeSQL(`
     CREATE TABLE IF NOT EXISTS price_cache (
       code TEXT PRIMARY KEY,
       price REAL NOT NULL,
@@ -42,14 +90,15 @@ export async function initDb() {
     )
   `);
 
-  // 持仓汇总缓存表（预计算的数据，供快速读取）
-  await client.execute(`
+  await executeSQL(`
     CREATE TABLE IF NOT EXISTS portfolio_cache (
       id TEXT PRIMARY KEY DEFAULT 'main',
       data TEXT NOT NULL,
       updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  initialized = true;
 }
 
 // 生成唯一 ID
@@ -70,10 +119,8 @@ export interface Position {
 
 // 获取所有持仓
 export async function getAllPositions(): Promise<Position[]> {
-  const client = getDb();
   await initDb();
-
-  const result = await client.execute("SELECT * FROM positions ORDER BY updatedAt DESC");
+  const result = await executeSQL("SELECT * FROM positions ORDER BY updatedAt DESC");
 
   return result.rows.map((row) => ({
     id: row.id as string,
@@ -93,36 +140,28 @@ export async function upsertPosition(data: {
   costPrice: number;
   shares: number;
 }): Promise<Position> {
-  const client = getDb();
   await initDb();
 
   const now = new Date().toISOString();
   const id = generateId();
 
-  // 使用 INSERT OR REPLACE
-  await client.execute({
-    sql: `
-      INSERT INTO positions (id, stockCode, stockName, costPrice, shares, createdAt, updatedAt)
-      VALUES (
-        COALESCE((SELECT id FROM positions WHERE stockCode = ?), ?),
-        ?, ?, ?, ?,
-        COALESCE((SELECT createdAt FROM positions WHERE stockCode = ?), ?),
-        ?
-      )
-      ON CONFLICT(stockCode) DO UPDATE SET
-        stockName = excluded.stockName,
-        costPrice = excluded.costPrice,
-        shares = excluded.shares,
-        updatedAt = excluded.updatedAt
-    `,
-    args: [data.stockCode, id, data.stockCode, data.stockName, data.costPrice, data.shares, data.stockCode, now, now],
-  });
+  await executeSQL(
+    `INSERT INTO positions (id, stockCode, stockName, costPrice, shares, createdAt, updatedAt)
+     VALUES (
+       COALESCE((SELECT id FROM positions WHERE stockCode = ?), ?),
+       ?, ?, ?, ?,
+       COALESCE((SELECT createdAt FROM positions WHERE stockCode = ?), ?),
+       ?
+     )
+     ON CONFLICT(stockCode) DO UPDATE SET
+       stockName = excluded.stockName,
+       costPrice = excluded.costPrice,
+       shares = excluded.shares,
+       updatedAt = excluded.updatedAt`,
+    [data.stockCode, id, data.stockCode, data.stockName, data.costPrice, data.shares, data.stockCode, now, now]
+  );
 
-  // 返回更新后的数据
-  const result = await client.execute({
-    sql: "SELECT * FROM positions WHERE stockCode = ?",
-    args: [data.stockCode],
-  });
+  const result = await executeSQL("SELECT * FROM positions WHERE stockCode = ?", [data.stockCode]);
 
   const row = result.rows[0];
   return {
@@ -138,24 +177,14 @@ export async function upsertPosition(data: {
 
 // 删除持仓
 export async function deletePosition(stockCode: string): Promise<void> {
-  const client = getDb();
   await initDb();
-
-  await client.execute({
-    sql: "DELETE FROM positions WHERE stockCode = ?",
-    args: [stockCode],
-  });
+  await executeSQL("DELETE FROM positions WHERE stockCode = ?", [stockCode]);
 }
 
 // 根据股票代码获取持仓
 export async function getPositionByCode(stockCode: string): Promise<Position | null> {
-  const client = getDb();
   await initDb();
-
-  const result = await client.execute({
-    sql: "SELECT * FROM positions WHERE stockCode = ?",
-    args: [stockCode],
-  });
+  const result = await executeSQL("SELECT * FROM positions WHERE stockCode = ?", [stockCode]);
 
   if (result.rows.length === 0) return null;
 
@@ -171,27 +200,17 @@ export async function getPositionByCode(stockCode: string): Promise<Position | n
   };
 }
 
-// 更新持仓的访问时间（用于记录最近查看的股票）
+// 更新持仓的访问时间
 export async function touchPosition(stockCode: string): Promise<void> {
-  const client = getDb();
   await initDb();
-
   const now = new Date().toISOString();
-  await client.execute({
-    sql: "UPDATE positions SET updatedAt = ? WHERE stockCode = ?",
-    args: [now, stockCode],
-  });
+  await executeSQL("UPDATE positions SET updatedAt = ? WHERE stockCode = ?", [now, stockCode]);
 }
 
 // 更新持仓的股票名称
 export async function updatePositionName(stockCode: string, stockName: string): Promise<void> {
-  const client = getDb();
   await initDb();
-
-  await client.execute({
-    sql: "UPDATE positions SET stockName = ? WHERE stockCode = ?",
-    args: [stockName, stockCode],
-  });
+  await executeSQL("UPDATE positions SET stockName = ? WHERE stockCode = ?", [stockName, stockCode]);
 }
 
 // ============ 价格缓存相关 ============
@@ -204,13 +223,8 @@ export interface CachedPrice {
 
 // 获取缓存的价格
 export async function getCachedPriceFromDb(code: string): Promise<CachedPrice | null> {
-  const client = getDb();
   await initDb();
-
-  const result = await client.execute({
-    sql: "SELECT * FROM price_cache WHERE code = ?",
-    args: [code],
-  });
+  const result = await executeSQL("SELECT * FROM price_cache WHERE code = ?", [code]);
 
   if (result.rows.length === 0) return null;
 
@@ -224,16 +238,12 @@ export async function getCachedPriceFromDb(code: string): Promise<CachedPrice | 
 
 // 批量获取缓存的价格
 export async function getBatchCachedPricesFromDb(codes: string[]): Promise<Map<string, CachedPrice>> {
-  const client = getDb();
   await initDb();
 
   if (codes.length === 0) return new Map();
 
   const placeholders = codes.map(() => "?").join(",");
-  const result = await client.execute({
-    sql: `SELECT * FROM price_cache WHERE code IN (${placeholders})`,
-    args: codes,
-  });
+  const result = await executeSQL(`SELECT * FROM price_cache WHERE code IN (${placeholders})`, codes);
 
   const priceMap = new Map<string, CachedPrice>();
   for (const row of result.rows) {
@@ -249,54 +259,43 @@ export async function getBatchCachedPricesFromDb(codes: string[]): Promise<Map<s
 
 // 更新单个价格缓存
 export async function updateCachedPrice(code: string, price: number): Promise<void> {
-  const client = getDb();
   await initDb();
-
   const now = new Date().toISOString();
-  await client.execute({
-    sql: `
-      INSERT INTO price_cache (code, price, updatedAt)
-      VALUES (?, ?, ?)
-      ON CONFLICT(code) DO UPDATE SET
-        price = excluded.price,
-        updatedAt = excluded.updatedAt
-    `,
-    args: [code, price, now],
-  });
+  await executeSQL(
+    `INSERT INTO price_cache (code, price, updatedAt)
+     VALUES (?, ?, ?)
+     ON CONFLICT(code) DO UPDATE SET
+       price = excluded.price,
+       updatedAt = excluded.updatedAt`,
+    [code, price, now]
+  );
 }
 
 // 批量更新价格缓存
 export async function updateBatchCachedPrices(prices: Map<string, number>): Promise<void> {
-  const client = getDb();
   await initDb();
-
   const now = new Date().toISOString();
 
-  // 逐个更新（避免 batch 的类型问题）
   for (const [code, price] of prices.entries()) {
-    await client.execute({
-      sql: `
-        INSERT INTO price_cache (code, price, updatedAt)
-        VALUES (?, ?, ?)
-        ON CONFLICT(code) DO UPDATE SET
-          price = excluded.price,
-          updatedAt = excluded.updatedAt
-      `,
-      args: [code, price, now],
-    });
+    await executeSQL(
+      `INSERT INTO price_cache (code, price, updatedAt)
+       VALUES (?, ?, ?)
+       ON CONFLICT(code) DO UPDATE SET
+         price = excluded.price,
+         updatedAt = excluded.updatedAt`,
+      [code, price, now]
+    );
   }
 }
 
 // 获取所有持仓的代码
 export async function getAllPositionCodes(): Promise<string[]> {
-  const client = getDb();
   await initDb();
-
-  const result = await client.execute("SELECT stockCode FROM positions");
+  const result = await executeSQL("SELECT stockCode FROM positions");
   return result.rows.map((row) => row.stockCode as string);
 }
 
-// 一次性获取所有持仓及其缓存价格（优化版，单次查询）
+// 一次性获取所有持仓及其缓存价格
 export interface PositionWithPrice {
   id: string;
   stockCode: string;
@@ -307,10 +306,8 @@ export interface PositionWithPrice {
 }
 
 export async function getAllPositionsWithPrices(): Promise<PositionWithPrice[]> {
-  const client = getDb();
   await initDb();
-
-  const result = await client.execute(`
+  const result = await executeSQL(`
     SELECT
       p.id,
       p.stockCode,
@@ -334,30 +331,24 @@ export async function getAllPositionsWithPrices(): Promise<PositionWithPrice[]> 
 
 // 保存预计算的持仓数据
 export async function savePortfolioCache(data: unknown): Promise<void> {
-  const client = getDb();
   await initDb();
-
   const now = new Date().toISOString();
   const jsonData = JSON.stringify(data);
 
-  await client.execute({
-    sql: `
-      INSERT INTO portfolio_cache (id, data, updatedAt)
-      VALUES ('main', ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        data = excluded.data,
-        updatedAt = excluded.updatedAt
-    `,
-    args: [jsonData, now],
-  });
+  await executeSQL(
+    `INSERT INTO portfolio_cache (id, data, updatedAt)
+     VALUES ('main', ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       data = excluded.data,
+       updatedAt = excluded.updatedAt`,
+    [jsonData, now]
+  );
 }
 
 // 读取预计算的持仓数据
 export async function getPortfolioCache(): Promise<{ data: unknown; updatedAt: string } | null> {
-  const client = getDb();
   await initDb();
-
-  const result = await client.execute("SELECT data, updatedAt FROM portfolio_cache WHERE id = 'main'");
+  const result = await executeSQL("SELECT data, updatedAt FROM portfolio_cache WHERE id = 'main'");
 
   if (result.rows.length === 0) {
     return null;
