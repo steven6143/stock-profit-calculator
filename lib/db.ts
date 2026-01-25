@@ -252,19 +252,19 @@ export async function updateBatchCachedPrices(prices: Map<string, number>): Prom
 
   const now = new Date().toISOString();
 
-  // 使用事务批量更新
-  const statements = Array.from(prices.entries()).map(([code, price]) => ({
-    sql: `
-      INSERT INTO price_cache (code, price, updatedAt)
-      VALUES (?, ?, ?)
-      ON CONFLICT(code) DO UPDATE SET
-        price = excluded.price,
-        updatedAt = excluded.updatedAt
-    `,
-    args: [code, price, now],
-  }));
-
-  await client.batch(statements);
+  // 逐个更新（避免 batch 的类型问题）
+  for (const [code, price] of prices.entries()) {
+    await client.execute({
+      sql: `
+        INSERT INTO price_cache (code, price, updatedAt)
+        VALUES (?, ?, ?)
+        ON CONFLICT(code) DO UPDATE SET
+          price = excluded.price,
+          updatedAt = excluded.updatedAt
+      `,
+      args: [code, price, now],
+    });
+  }
 }
 
 // 获取所有持仓的代码
