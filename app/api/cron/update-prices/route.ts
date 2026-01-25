@@ -1,11 +1,71 @@
 import { NextResponse } from "next/server";
-import { getAllPositionCodes, updateBatchCachedPrices } from "@/lib/db";
+import { getAllPositionCodes, updateBatchCachedPrices, getAllPositionsWithPrices, savePortfolioCache, updatePositionName } from "@/lib/db";
 import { fetchStockQuote } from "@/lib/services/sina-stock";
 import { fetchFundData } from "@/lib/services/eastmoney-fund";
 
 // 判断是否为基金代码（6位纯数字）
 function isFundCode(code: string): boolean {
   return /^\d{6}$/.test(code);
+}
+
+// 预计算并缓存持仓数据
+async function updatePortfolioCache(): Promise<void> {
+  const positionsWithPrices = await getAllPositionsWithPrices();
+
+  const items = positionsWithPrices.map((position) => {
+    const currentPrice = position.cachedPrice;
+    const totalCost = position.costPrice * position.shares;
+    const marketValue = currentPrice !== null ? currentPrice * position.shares : null;
+    const profit = marketValue !== null ? marketValue - totalCost : null;
+    const profitPercent = profit !== null && totalCost > 0 ? (profit / totalCost) * 100 : null;
+
+    return {
+      id: position.id,
+      code: position.stockCode,
+      name: position.stockName,
+      assetType: isFundCode(position.stockCode) ? "fund" : "stock",
+      costPrice: position.costPrice,
+      shares: position.shares,
+      currentPrice,
+      totalCost,
+      marketValue,
+      profit,
+      profitPercent,
+    };
+  });
+
+  // 计算汇总数据
+  const summary = items.reduce(
+    (acc, item) => {
+      acc.totalCost += item.totalCost;
+      if (item.marketValue !== null) {
+        acc.totalMarketValue += item.marketValue;
+      }
+      if (item.profit !== null) {
+        acc.totalProfit += item.profit;
+      }
+      return acc;
+    },
+    {
+      totalCost: 0,
+      totalMarketValue: 0,
+      totalProfit: 0,
+      totalProfitPercent: 0,
+    }
+  );
+
+  if (summary.totalCost > 0) {
+    summary.totalProfitPercent = (summary.totalProfit / summary.totalCost) * 100;
+  }
+
+  const hasPrices = items.some(item => item.currentPrice !== null);
+
+  // 保存到数据库
+  await savePortfolioCache({
+    items,
+    summary,
+    hasPrices,
+  });
 }
 
 // 判断当前是否在股票交易时间（北京时间 9:30-11:30, 13:00-15:00）
@@ -38,19 +98,30 @@ function shouldUpdateFundPrice(): boolean {
   return hours >= 20 && hours <= 23;
 }
 
-// 获取资产价格
-async function fetchAssetPrice(code: string): Promise<number | null> {
+// 获取资产价格和名称
+interface AssetPriceResult {
+  price: number | null;
+  name: string | null;
+}
+
+async function fetchAssetPriceAndName(code: string): Promise<AssetPriceResult> {
   try {
     if (isFundCode(code)) {
       const fundData = await fetchFundData(code);
-      return fundData.quote?.netWorth ?? null;
+      return {
+        price: fundData.quote?.netWorth ?? null,
+        name: fundData.quote?.name ?? null,
+      };
     } else {
       const quote = await fetchStockQuote(code);
-      return quote.currentPrice;
+      return {
+        price: quote?.currentPrice ?? null,
+        name: quote?.name ?? null,
+      };
     }
   } catch (error) {
     console.error(`获取 ${code} 价格失败:`, error);
-    return null;
+    return { price: null, name: null };
   }
 }
 
@@ -127,23 +198,31 @@ export async function GET(request: Request) {
 
     debugInfo.push("开始获取价格");
 
-    // 并行获取所有价格
+    // 并行获取所有价格和名称
     const priceResults = await Promise.all(
       codesToUpdate.map(async (code) => {
-        const price = await fetchAssetPrice(code);
-        return { code, price };
+        const result = await fetchAssetPriceAndName(code);
+        return { code, ...result };
       })
     );
 
     debugInfo.push(`价格结果: ${JSON.stringify(priceResults)}`);
 
-    // 过滤成功获取的价格
+    // 过滤成功获取的价格，并更新名称
     const validPrices = new Map<string, number>();
-    for (const { code, price } of priceResults) {
+    const nameUpdates: string[] = [];
+    for (const { code, price, name } of priceResults) {
       if (price !== null && typeof price === 'number') {
         validPrices.set(code, price);
       }
+      // 如果获取到了名称，更新数据库中的名称
+      if (name) {
+        await updatePositionName(code, name);
+        nameUpdates.push(`${code}:${name}`);
+      }
     }
+
+    debugInfo.push(`名称更新: ${JSON.stringify(nameUpdates)}`);
 
     debugInfo.push(`有效价格数量: ${validPrices.size}`);
 
@@ -154,6 +233,11 @@ export async function GET(request: Request) {
       debugInfo.push("数据库更新完成");
     }
 
+    // 预计算并缓存持仓数据
+    debugInfo.push("开始预计算持仓数据");
+    await updatePortfolioCache();
+    debugInfo.push("持仓缓存更新完成");
+
     return NextResponse.json({
       success: true,
       message: `成功更新 ${validPrices.size} 个价格`,
@@ -161,6 +245,7 @@ export async function GET(request: Request) {
       failed: codesToUpdate.length - validPrices.size,
       isStockTradingTime: isTrading,
       shouldUpdateFund: shouldUpdateFund,
+      debug: debugInfo,
     });
   } catch (error) {
     console.error("更新价格失败:", error);

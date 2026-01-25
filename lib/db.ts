@@ -41,6 +41,15 @@ export async function initDb() {
       updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // 持仓汇总缓存表（预计算的数据，供快速读取）
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS portfolio_cache (
+      id TEXT PRIMARY KEY DEFAULT 'main',
+      data TEXT NOT NULL,
+      updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 }
 
 // 生成唯一 ID
@@ -171,6 +180,17 @@ export async function touchPosition(stockCode: string): Promise<void> {
   await client.execute({
     sql: "UPDATE positions SET updatedAt = ? WHERE stockCode = ?",
     args: [now, stockCode],
+  });
+}
+
+// 更新持仓的股票名称
+export async function updatePositionName(stockCode: string, stockName: string): Promise<void> {
+  const client = getDb();
+  await initDb();
+
+  await client.execute({
+    sql: "UPDATE positions SET stockName = ? WHERE stockCode = ?",
+    args: [stockName, stockCode],
   });
 }
 
@@ -310,4 +330,42 @@ export async function getAllPositionsWithPrices(): Promise<PositionWithPrice[]> 
     shares: row.shares as number,
     cachedPrice: row.cachedPrice as number | null,
   }));
+}
+
+// 保存预计算的持仓数据
+export async function savePortfolioCache(data: unknown): Promise<void> {
+  const client = getDb();
+  await initDb();
+
+  const now = new Date().toISOString();
+  const jsonData = JSON.stringify(data);
+
+  await client.execute({
+    sql: `
+      INSERT INTO portfolio_cache (id, data, updatedAt)
+      VALUES ('main', ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        data = excluded.data,
+        updatedAt = excluded.updatedAt
+    `,
+    args: [jsonData, now],
+  });
+}
+
+// 读取预计算的持仓数据
+export async function getPortfolioCache(): Promise<{ data: unknown; updatedAt: string } | null> {
+  const client = getDb();
+  await initDb();
+
+  const result = await client.execute("SELECT data, updatedAt FROM portfolio_cache WHERE id = 'main'");
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  const row = result.rows[0];
+  return {
+    data: JSON.parse(row.data as string),
+    updatedAt: row.updatedAt as string,
+  };
 }

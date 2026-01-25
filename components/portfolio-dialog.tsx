@@ -113,23 +113,23 @@ export function PortfolioDialog({
                   onClick={() => handleSelectItem(item)}
                   className="p-4 rounded-lg border border-border/50 bg-secondary/50 hover:bg-secondary cursor-pointer transition-colors"
                 >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-foreground">
+                  <div className="flex items-start justify-between mb-2 gap-2">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
+                      <span className="font-medium text-foreground break-words">
                         {item.name}
                       </span>
                       <Badge
                         variant="outline"
-                        className={
+                        className={`shrink-0 ${
                           item.assetType === "fund"
                             ? "border-blue-500/50 text-blue-500"
                             : "border-green-500/50 text-green-500"
-                        }
+                        }`}
                       >
                         {item.assetType === "fund" ? "基金" : "股票"}
                       </Badge>
                     </div>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-sm text-muted-foreground shrink-0">
                       {item.code}
                     </span>
                   </div>
