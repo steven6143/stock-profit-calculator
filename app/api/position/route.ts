@@ -90,8 +90,9 @@ export async function GET() {
     return NextResponse.json({ success: true, data: positions });
   } catch (error) {
     console.error("获取持仓失败:", error);
+    const errorMessage = error instanceof Error ? error.message : "未知错误";
     return NextResponse.json(
-      { success: false, error: "获取持仓失败" },
+      { success: false, error: "获取持仓失败", detail: errorMessage },
       { status: 500 }
     );
   }
