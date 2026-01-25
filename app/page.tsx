@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { StockChart } from "@/components/stock-chart";
 import { StockStats } from "@/components/stock-stats";
 import { TimeRangeSelector } from "@/components/time-range-selector";
@@ -65,7 +65,7 @@ export default function StockTrackerPage() {
   }, []);
 
   // 获取 Portfolio 数据 - 直接从数据库获取，速度快
-  const fetchPortfolio = async () => {
+  const fetchPortfolio = useCallback(async () => {
     setPortfolioLoading(true);
     try {
       const response = await fetch("/api/portfolio");
@@ -78,7 +78,7 @@ export default function StockTrackerPage() {
     } finally {
       setPortfolioLoading(false);
     }
-  };
+  }, []);
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
