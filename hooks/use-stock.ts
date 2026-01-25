@@ -48,8 +48,8 @@ export function useStockQuote(code: string | null) {
 
   useEffect(() => {
     fetchQuote();
-    // 每30秒刷新一次
-    const interval = setInterval(fetchQuote, 30000);
+    // 每60秒刷新一次（配合 cron 更新频率）
+    const interval = setInterval(fetchQuote, 60000);
     return () => clearInterval(interval);
   }, [fetchQuote]);
 
