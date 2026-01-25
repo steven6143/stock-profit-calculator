@@ -20,7 +20,7 @@ async function initDb() {
 
   const db = await getDb();
 
-  await db.exec(`
+  await db.prepare(`
     CREATE TABLE IF NOT EXISTS positions (
       id TEXT PRIMARY KEY,
       stockCode TEXT UNIQUE NOT NULL,
@@ -30,23 +30,23 @@ async function initDb() {
       createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
       updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
     )
-  `);
+  `).run();
 
-  await db.exec(`
+  await db.prepare(`
     CREATE TABLE IF NOT EXISTS price_cache (
       code TEXT PRIMARY KEY,
       price REAL NOT NULL,
       updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
     )
-  `);
+  `).run();
 
-  await db.exec(`
+  await db.prepare(`
     CREATE TABLE IF NOT EXISTS portfolio_cache (
       id TEXT PRIMARY KEY DEFAULT 'main',
       data TEXT NOT NULL,
       updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
     )
-  `);
+  `).run();
 
   initialized = true;
 }
