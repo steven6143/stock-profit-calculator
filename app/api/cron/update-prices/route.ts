@@ -147,8 +147,9 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("更新价格失败:", error);
+    const errorMessage = error instanceof Error ? error.message : "未知错误";
     return NextResponse.json(
-      { success: false, error: "更新价格失败" },
+      { success: false, error: "更新价格失败", detail: errorMessage },
       { status: 500 }
     );
   }
