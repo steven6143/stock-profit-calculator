@@ -64,32 +64,17 @@ export default function StockTrackerPage() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // 预加载 Portfolio 数据的函数
-  // 两步加载：先快速获取静态数据，再异步更新实时价格
-  const fetchPortfolio = async (quickOnly = false) => {
+  // 获取 Portfolio 数据 - 直接从数据库获取，速度快
+  const fetchPortfolio = async () => {
     setPortfolioLoading(true);
     try {
-      // 第一步：快速获取静态数据（使用缓存价格）
-      const quickResponse = await fetch("/api/portfolio?quick=true");
-      const quickResult = await quickResponse.json();
-      if (quickResult.success && quickResult.data) {
-        setPortfolioData(quickResult.data);
-
-        // 如果只需要快速数据，或者缓存中已有所有价格，就不再请求
-        if (quickOnly || quickResult.data.hasPrices) {
-          setPortfolioLoading(false);
-          return;
-        }
-      }
-
-      // 第二步：异步获取完整数据（包含实时价格）
-      const fullResponse = await fetch("/api/portfolio");
-      const fullResult = await fullResponse.json();
-      if (fullResult.success && fullResult.data) {
-        setPortfolioData(fullResult.data);
+      const response = await fetch("/api/portfolio");
+      const result = await response.json();
+      if (result.success && result.data) {
+        setPortfolioData(result.data);
       }
     } catch (error) {
-      console.error("预加载投资组合失败:", error);
+      console.error("获取投资组合失败:", error);
     } finally {
       setPortfolioLoading(false);
     }
