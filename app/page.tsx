@@ -6,15 +6,18 @@ import { StockStats } from "@/components/stock-stats";
 import { TimeRangeSelector } from "@/components/time-range-selector";
 import { ProfitHero } from "@/components/profit-hero";
 import { PositionDialog } from "@/components/position-dialog";
+import { PortfolioDialog } from "@/components/portfolio-dialog";
 import { StockSearch } from "@/components/stock-search";
 import { useStockQuote, useKLineData, usePosition, useFundData } from "@/hooks/use-stock";
 import type { AssetType } from "@/lib/types/stock";
 import type { UnifiedSearchResult } from "@/hooks/use-stock";
-import { Loader2, TrendingUp, ChevronUp } from "lucide-react";
+import { Loader2, TrendingUp, ChevronUp, Wallet } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function StockTrackerPage() {
   const [timeRange, setTimeRange] = useState("1D");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [portfolioOpen, setPortfolioOpen] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<{
     code: string;
@@ -109,6 +112,20 @@ export default function StockTrackerPage() {
     }
   };
 
+  const handlePortfolioSelect = (code: string, name: string, assetType: AssetType) => {
+    setSelectedAsset({
+      code,
+      name,
+      type: assetType,
+    });
+    // 基金没有日线，切换到1周
+    if (assetType === "fund" && timeRange === "1D") {
+      setTimeRange("1W");
+    }
+    // 更新访问时间
+    touchPosition(code);
+  };
+
   const handleSavePosition = async (costPrice: string, shares: string) => {
     if (!selectedAsset) return;
 
@@ -168,9 +185,22 @@ export default function StockTrackerPage() {
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-4xl px-4 py-6 md:px-6 md:py-8">
-        {/* 搜索 */}
+        {/* 搜索和持仓按钮 */}
         <section className="mb-6">
-          <StockSearch onSelect={handleAssetSelect} />
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <StockSearch onSelect={handleAssetSelect} />
+            </div>
+            <Button
+              onClick={() => setPortfolioOpen(true)}
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 shrink-0 border-border/50 bg-secondary/50 hover:bg-secondary"
+              title="我的持仓"
+            >
+              <Wallet className="h-5 w-5" />
+            </Button>
+          </div>
         </section>
 
         {/* 加载状态 */}
@@ -277,6 +307,13 @@ export default function StockTrackerPage() {
           onClear={handleClearPosition}
           hasPosition={!!currentPosition}
           assetType={selectedAsset?.type || "stock"}
+        />
+
+        {/* Portfolio Dialog */}
+        <PortfolioDialog
+          open={portfolioOpen}
+          onOpenChange={setPortfolioOpen}
+          onSelectAsset={handlePortfolioSelect}
         />
       </div>
 
