@@ -1,3 +1,8 @@
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
+
+// 开发环境初始化
+initOpenNextCloudflareForDev();
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
@@ -6,8 +11,6 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // 添加 serverExternalPackages 解决 libsql 兼容性问题
-  serverExternalPackages: ["@libsql/client", "libsql"],
 }
 
 export default nextConfig

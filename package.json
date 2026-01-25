@@ -6,7 +6,10 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "eslint .",
-    "start": "next start"
+    "start": "next start",
+    "build:cloudflare": "npx @opennextjs/cloudflare build",
+    "preview": "npm run build:cloudflare && npx wrangler dev",
+    "deploy": "npm run build:cloudflare && npx wrangler deploy"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -63,6 +66,7 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.15.1",
     "@tailwindcss/postcss": "^4.1.9",
     "@types/node": "^22",
     "@types/react": "^19",
@@ -70,6 +74,7 @@
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
     "tw-animate-css": "1.3.3",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.60.0"
   }
 }
