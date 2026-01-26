@@ -130,8 +130,26 @@ export async function searchStock(keyword: string): Promise<StockSearchResult[]>
 // 根据时间范围获取K线参数
 export function getKLineParams(range: string): { scale: number; datalen: number } {
   switch (range) {
-    case "1D":
-      return { scale: 5, datalen: 48 }; // 5分钟K线，48条
+    case "1D": {
+      // 5分钟K线，显示当天开盘到现在
+      // 计算从 9:30 到现在的分钟数
+      const now = new Date();
+      const beijingTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Shanghai" }));
+      const hours = beijingTime.getHours();
+      const minutes = beijingTime.getMinutes();
+
+      // 如果在 9:30 之前，显示昨天收盘前的数据
+      if (hours < 9 || (hours === 9 && minutes < 30)) {
+        return { scale: 5, datalen: 48 }; // 显示 4 小时
+      }
+
+      // 计算从 9:30 到现在的分钟数
+      const minutesSinceOpen = (hours - 9) * 60 + (minutes - 30);
+      // 每 5 分钟一条，至少显示 12 条（1小时）
+      const datalen = Math.max(12, Math.ceil(minutesSinceOpen / 5));
+
+      return { scale: 5, datalen };
+    }
     case "1W":
       return { scale: 30, datalen: 56 }; // 30分钟K线，7天
     case "1M":
