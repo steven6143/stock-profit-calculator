@@ -32,6 +32,13 @@ export function StockChart({ data, isUp, costPrice, timeRange }: StockChartProps
     // 使用当前北京时间的日期
     const today = getTodayBeijing()
 
+    // 获取当前北京时间
+    const now = new Date()
+    const beijingNow = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Shanghai" }))
+    const currentHour = beijingNow.getHours()
+    const currentMin = beijingNow.getMinutes()
+    const currentTimeStr = `${currentHour.toString().padStart(2, '0')}:${currentMin.toString().padStart(2, '0')}`
+
     // 生成完整的交易时间点（9:30-15:00，每5分钟）
     const fullTimeSlots: string[] = []
 
@@ -60,22 +67,28 @@ export function StockChart({ data, isUp, costPrice, timeRange }: StockChartProps
     ]
 
     // 创建时间到价格的映射
-    // 需要将数据的日期也转换为今天的日期（如果数据是历史数据）
+    // 只使用今天日期的数据，忽略历史数据
     const priceMap = new Map<string, number>()
     data.forEach(d => {
-      // 提取时间部分 "HH:MM"
+      const datePart = d.time.split(" ")[0]
       const timePart = d.time.split(" ")[1]?.slice(0, 5)
-      if (timePart) {
+      // 只接受今天的数据
+      if (datePart === today && timePart) {
         const normalizedTime = `${today} ${timePart}:00`
         priceMap.set(normalizedTime, d.price)
       }
     })
 
-    // 填充数据，没有数据的时间点设为 null
-    chartData = fullTimeSlots.map(time => ({
-      time,
-      price: priceMap.get(time) ?? (null as any)
-    }))
+    // 填充数据，只显示当前时间之前的数据点
+    chartData = fullTimeSlots.map(time => {
+      const timeOnly = time.split(" ")[1]?.slice(0, 5) || ""
+      // 如果时间点在当前时间之后，设为 null
+      const isFuture = timeOnly > currentTimeStr
+      return {
+        time,
+        price: isFuture ? (null as any) : (priceMap.get(time) ?? (null as any))
+      }
+    })
   }
 
   const validPrices = chartData.filter(d => d.price !== null).map(d => d.price)
