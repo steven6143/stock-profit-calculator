@@ -177,6 +177,10 @@ export async function GET(request: Request) {
 
       if (forceUpdate) {
         codesToUpdate.push(code);
+      } else if (typeFilter) {
+        // 如果指定了类型（来自 cron 调用），直接更新，不再检查时间
+        // 因为 cron 本身已经配置了正确的触发时间
+        codesToUpdate.push(code);
       } else if (isFund && shouldUpdateFund) {
         codesToUpdate.push(code);
       } else if (!isFund && isTrading) {
