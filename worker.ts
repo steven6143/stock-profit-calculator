@@ -16,13 +16,16 @@ export default {
     // UTC 1-7 = 北京时间 9-15，更新股票
     const type = hour === 12 ? "fund" : "stock";
 
-    // 构造内部请求调用 API
-    const url = `https://stock-profit-calculator.steven6143.workers.dev/api/cron/update-prices?type=${type}`;
+    // 构造内部请求，直接调用 worker.fetch
+    const request = new Request(
+      `https://localhost/api/cron/update-prices?type=${type}`,
+      { method: "GET" }
+    );
 
     ctx.waitUntil(
-      fetch(url).then(res => {
+      worker.fetch(request, env, ctx).then((res: Response) => {
         console.log(`Cron ${type} update: ${res.status}`);
-      }).catch(err => {
+      }).catch((err: Error) => {
         console.error(`Cron ${type} error:`, err);
       })
     );
