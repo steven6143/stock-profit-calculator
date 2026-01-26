@@ -26,7 +26,7 @@ export function StockChart({ data, isUp, costPrice, timeRange }: StockChartProps
       const startMin = h === 9 ? 30 : 0
       const endMin = h === 11 ? 30 : 55
       for (let m = startMin; m <= endMin; m += 5) {
-        fullTimeSlots.push(`${today} ${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`)
+        fullTimeSlots.push(`${today} ${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:00`)
       }
     }
 
@@ -34,12 +34,16 @@ export function StockChart({ data, isUp, costPrice, timeRange }: StockChartProps
     for (let h = 13; h <= 15; h++) {
       const endMin = h === 15 ? 0 : 55
       for (let m = 0; m <= endMin; m += 5) {
-        fullTimeSlots.push(`${today} ${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`)
+        fullTimeSlots.push(`${today} ${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:00`)
       }
     }
 
-    // 创建时间到价格的映射
-    const priceMap = new Map(data.map(d => [d.time, d.price]))
+    // 创建时间到价格的映射（标准化时间格式，去掉秒）
+    const priceMap = new Map(data.map(d => {
+      // 标准化时间：取前16个字符 "2026-01-26 12:15"
+      const normalizedTime = d.time.slice(0, 16) + ":00"
+      return [normalizedTime, d.price]
+    }))
 
     // 填充数据，没有数据的时间点设为 null
     chartData = fullTimeSlots.map(time => ({
