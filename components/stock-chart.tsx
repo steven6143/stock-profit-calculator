@@ -14,8 +14,43 @@ export function StockChart({ data, isUp, costPrice, timeRange }: StockChartProps
   const chartColor = isUp ? "#ef4444" : "#22c55e"
   const gradientId = isUp ? "fillUp" : "fillDown"
 
-  const minPrice = Math.min(...data.map((d) => d.price))
-  const maxPrice = Math.max(...data.map((d) => d.price))
+  // 对于 1D（一日线），填充完整的交易时间轴
+  let chartData = data
+  if (timeRange === "1D" && data.length > 0) {
+    // 生成完整的交易时间点（9:30-15:00，每5分钟）
+    const fullTimeSlots: string[] = []
+    const today = data[0].time.split(" ")[0] // 获取日期部分
+
+    // 上午：9:30-11:30
+    for (let h = 9; h <= 11; h++) {
+      const startMin = h === 9 ? 30 : 0
+      const endMin = h === 11 ? 30 : 55
+      for (let m = startMin; m <= endMin; m += 5) {
+        fullTimeSlots.push(`${today} ${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`)
+      }
+    }
+
+    // 下午：13:00-15:00
+    for (let h = 13; h <= 15; h++) {
+      const endMin = h === 15 ? 0 : 55
+      for (let m = 0; m <= endMin; m += 5) {
+        fullTimeSlots.push(`${today} ${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`)
+      }
+    }
+
+    // 创建时间到价格的映射
+    const priceMap = new Map(data.map(d => [d.time, d.price]))
+
+    // 填充数据，没有数据的时间点设为 null
+    chartData = fullTimeSlots.map(time => ({
+      time,
+      price: priceMap.get(time) ?? (null as any)
+    }))
+  }
+
+  const validPrices = chartData.filter(d => d.price !== null).map(d => d.price)
+  const minPrice = Math.min(...validPrices)
+  const maxPrice = Math.max(...validPrices)
   const padding = (maxPrice - minPrice) * 0.1
   const yDomain = [minPrice - padding, maxPrice + padding]
 
@@ -36,7 +71,7 @@ export function StockChart({ data, isUp, costPrice, timeRange }: StockChartProps
       className="h-[300px] w-full md:h-[400px]"
     >
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={chartColor} stopOpacity={0.3} />
@@ -115,6 +150,7 @@ export function StockChart({ data, isUp, costPrice, timeRange }: StockChartProps
             stroke={chartColor}
             strokeWidth={2}
             fill={`url(#${gradientId})`}
+            connectNulls={false}
           />
         </AreaChart>
       </ResponsiveContainer>
