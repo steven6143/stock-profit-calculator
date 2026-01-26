@@ -1,7 +1,7 @@
 "use client"
 
 import { Area, AreaChart, XAxis, YAxis, ResponsiveContainer, ReferenceLine } from "recharts"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { ChartContainer } from "@/components/ui/chart"
 
 interface StockChartProps {
   data: { time: string; price: number }[]
@@ -10,16 +10,30 @@ interface StockChartProps {
   timeRange?: string
 }
 
+// 获取当前北京时间的日期字符串
+function getTodayBeijing(): string {
+  const now = new Date()
+  const beijingTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Shanghai" }))
+  const year = beijingTime.getFullYear()
+  const month = (beijingTime.getMonth() + 1).toString().padStart(2, '0')
+  const day = beijingTime.getDate().toString().padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export function StockChart({ data, isUp, costPrice, timeRange }: StockChartProps) {
   const chartColor = isUp ? "#ef4444" : "#22c55e"
   const gradientId = isUp ? "fillUp" : "fillDown"
 
   // 对于 1D（一日线），填充完整的交易时间轴
   let chartData = data
+  let keyTicks: string[] = [] // 关键时间点用于 X 轴显示
+
   if (timeRange === "1D" && data.length > 0) {
+    // 使用当前北京时间的日期
+    const today = getTodayBeijing()
+
     // 生成完整的交易时间点（9:30-15:00，每5分钟）
     const fullTimeSlots: string[] = []
-    const today = data[0].time.split(" ")[0] // 获取日期部分
 
     // 上午：9:30-11:30
     for (let h = 9; h <= 11; h++) {
@@ -38,12 +52,25 @@ export function StockChart({ data, isUp, costPrice, timeRange }: StockChartProps
       }
     }
 
-    // 创建时间到价格的映射（标准化时间格式，去掉秒）
-    const priceMap = new Map(data.map(d => {
-      // 标准化时间：取前16个字符 "2026-01-26 12:15"
-      const normalizedTime = d.time.slice(0, 16) + ":00"
-      return [normalizedTime, d.price]
-    }))
+    // 关键时间点：上午开盘、上午收盘、下午开盘、下午收盘
+    keyTicks = [
+      `${today} 09:30:00`,
+      `${today} 11:30:00`,
+      `${today} 13:00:00`,
+      `${today} 15:00:00`
+    ]
+
+    // 创建时间到价格的映射
+    // 需要将数据的日期也转换为今天的日期（如果数据是历史数据）
+    const priceMap = new Map<string, number>()
+    data.forEach(d => {
+      // 提取时间部分 "HH:MM"
+      const timePart = d.time.split(" ")[1]?.slice(0, 5)
+      if (timePart) {
+        const normalizedTime = `${today} ${timePart}:00`
+        priceMap.set(normalizedTime, d.price)
+      }
+    })
 
     // 填充数据，没有数据的时间点设为 null
     chartData = fullTimeSlots.map(time => ({
@@ -53,9 +80,9 @@ export function StockChart({ data, isUp, costPrice, timeRange }: StockChartProps
   }
 
   const validPrices = chartData.filter(d => d.price !== null).map(d => d.price)
-  const minPrice = Math.min(...validPrices)
-  const maxPrice = Math.max(...validPrices)
-  const padding = (maxPrice - minPrice) * 0.1
+  const minPrice = validPrices.length > 0 ? Math.min(...validPrices) : 0
+  const maxPrice = validPrices.length > 0 ? Math.max(...validPrices) : 100
+  const padding = (maxPrice - minPrice) * 0.1 || 1
   const yDomain = [minPrice - padding, maxPrice + padding]
 
   // Include cost price in domain calculation if provided
@@ -88,8 +115,9 @@ export function StockChart({ data, isUp, costPrice, timeRange }: StockChartProps
             tickLine={false}
             tick={{ fill: "#6b7280", fontSize: 10 }}
             tickMargin={8}
+            ticks={timeRange === "1D" ? keyTicks : undefined}
             tickFormatter={(value) => {
-              // 日内数据：只显示时间 (如 "11:10")
+              // 日内数据：只显示时间 (如 "09:30")
               if (value.includes(" ")) {
                 const timePart = value.split(" ")[1]
                 return timePart ? timePart.slice(0, 5) : value
@@ -107,7 +135,7 @@ export function StockChart({ data, isUp, costPrice, timeRange }: StockChartProps
               }
               return value
             }}
-            interval="preserveStartEnd"
+            interval={timeRange === "1D" ? 0 : "preserveStartEnd"}
           />
           <YAxis
             domain={yDomain}
@@ -117,21 +145,6 @@ export function StockChart({ data, isUp, costPrice, timeRange }: StockChartProps
             tickMargin={10}
             tickFormatter={(value) => `¥${value.toFixed(2)}`}
             width={70}
-          />
-          <ChartTooltip
-            content={({ active, payload }) => {
-              if (active && payload && payload.length) {
-                return (
-                  <div className="rounded-lg border border-border bg-card px-3 py-2 shadow-md">
-                    <p className="text-sm text-muted-foreground">{payload[0].payload.time}</p>
-                    <p className="text-base font-semibold text-foreground">
-                      ¥{Number(payload[0].value).toFixed(2)}
-                    </p>
-                  </div>
-                )
-              }
-              return null
-            }}
           />
           {costPrice !== undefined && (
             <ReferenceLine
