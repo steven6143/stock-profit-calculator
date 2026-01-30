@@ -77,7 +77,7 @@ function isStockTradingTime(): boolean {
   const minutes = beijingTime.getMinutes();
   const totalMinutes = hours * 60 + minutes;
 
-  // 9:30-11:30 = 570-690 分钟
+  // 9:30-11:30 = 570-690 分钟（注意：9:00-9:30 是集合竞价，价格为0，不更新）
   // 13:00-15:00 = 780-900 分钟
   const isMorningSession = totalMinutes >= 570 && totalMinutes <= 690;
   const isAfternoonSession = totalMinutes >= 780 && totalMinutes <= 900;
@@ -178,9 +178,14 @@ export async function GET(request: Request) {
       if (forceUpdate) {
         codesToUpdate.push(code);
       } else if (typeFilter) {
-        // 如果指定了类型（来自 cron 调用），直接更新，不再检查时间
-        // 因为 cron 本身已经配置了正确的触发时间
-        codesToUpdate.push(code);
+        // 如果指定了类型（来自 cron 调用）
+        // 基金：直接更新，不检查时间（cron 已配置正确时间）
+        // 股票：仍需检查交易时间（避免 9:00-9:30 集合竞价期间获取到价格 0）
+        if (isFund) {
+          codesToUpdate.push(code);
+        } else if (isTrading) {
+          codesToUpdate.push(code);
+        }
       } else if (isFund && shouldUpdateFund) {
         codesToUpdate.push(code);
       } else if (!isFund && isTrading) {

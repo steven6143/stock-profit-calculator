@@ -12,9 +12,9 @@ export default {
     // 根据 cron 表达式判断类型
     const hour = new Date(event.scheduledTime).getUTCHours();
 
-    // UTC 12:00 = 北京时间 20:00，更新基金
+    // UTC 12-16 = 北京时间 20:00-24:00，更新基金
     // UTC 1-7 = 北京时间 9-15，更新股票
-    const type = hour === 12 ? "fund" : "stock";
+    const type = hour >= 12 && hour <= 16 ? "fund" : "stock";
 
     // 构造内部请求，直接调用 worker.fetch
     const request = new Request(
