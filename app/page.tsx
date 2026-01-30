@@ -11,7 +11,7 @@ import { StockSearch } from "@/components/stock-search";
 import { useStockQuote, useKLineData, usePosition, useFundData } from "@/hooks/use-stock";
 import type { AssetType } from "@/lib/types/stock";
 import type { UnifiedSearchResult } from "@/hooks/use-stock";
-import { Loader2, TrendingUp, ChevronUp, Wallet } from "lucide-react";
+import { Loader2, TrendingUp, ChevronUp, Wallet, RefreshCw } from "lucide-react";
 
 // Portfolio 数据类型
 interface PortfolioItem {
@@ -45,6 +45,7 @@ export default function StockTrackerPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [portfolioOpen, setPortfolioOpen] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<{
     code: string;
     name: string;
@@ -82,6 +83,20 @@ export default function StockTrackerPage() {
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // 强制刷新所有持仓价格
+  const handleForceRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetch("/api/cron/update-prices?force=true");
+      // 刷新完成后重新获取 Portfolio 数据
+      await fetchPortfolio();
+    } catch (error) {
+      console.error("强制刷新失败:", error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   // 股票数据
@@ -366,6 +381,16 @@ export default function StockTrackerPage() {
 
       {/* 悬浮按钮组 */}
       <div className="fixed right-6 z-40 flex flex-col gap-3 transition-all duration-300" style={{ bottom: showScrollTop ? '5.5rem' : '1.5rem' }}>
+        {/* 强制刷新按钮 */}
+        <button
+          onClick={handleForceRefresh}
+          disabled={refreshing}
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary border border-border text-muted-foreground shadow-lg transition-all hover:bg-secondary/80 hover:text-foreground active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="强制刷新"
+        >
+          <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
+        </button>
+
         {/* 持仓按钮 - 始终显示 */}
         <button
           onClick={() => setPortfolioOpen(true)}
